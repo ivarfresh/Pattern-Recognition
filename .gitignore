@@ -1,0 +1,14 @@
+
+Assignment2/data/MNISTDataset/raw/t10k-images-idx3-ubyte
+Assignment2/data/MNISTDataset/raw/t10k-images-idx3-ubyte.gz
+Assignment2/data/MNISTDataset/raw/t10k-labels-idx1-ubyte
+Assignment2/data/MNISTDataset/raw/t10k-labels-idx1-ubyte.gz
+Assignment2/data/MNISTDataset/raw/train-images-idx3-ubyte
+Assignment2/data/MNISTDataset/raw/train-images-idx3-ubyte.gz
+Assignment2/data/MNISTDataset/raw/train-labels-idx1-ubyte
+Assignment2/data/MNISTDataset/raw/train-labels-idx1-ubyte.gz
+Assignment2/logs/diffuse/871660e7968611edad36448a5bd816a0/configs.yaml
+Assignment2/logs/diffuse/871660e7968611edad36448a5bd816a0/indicators.yaml
+Assignment2/logs/diffuse/871660e7968611edad36448a5bd816a0/pids/0.pid
+Assignment2/logs/diffuse/871660e7968611edad36448a5bd816a0/run.yaml
+Assignment2/logs/diffuse/871660e7968611edad36448a5bd816a0/source.diff
