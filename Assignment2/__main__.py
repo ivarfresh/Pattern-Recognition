@@ -39,6 +39,7 @@ def main():
 
     # Create configurations
     configs = Configs()
+    print(f'Status: Device is using GPU: {torch.cuda.is_available()}')
 
     # Set configurations. You can override the defaults by passing the values in the dictionary.
     experiment.configs(configs, {
