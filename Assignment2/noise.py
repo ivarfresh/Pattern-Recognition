@@ -32,7 +32,7 @@ class DenoiseDiffusion:
 
         Args:
         - eps_model: This is \epsilon_\theta(x_t, t). PyTorch module (with parameters theta) representing the denoising process, which is a function that maps the final latent state back to the observation space (e.g., the space of clean images).
-        It takes the final latent state x_t and produces some output.
+        It takes the final latent state x_t and produces some output. In our case, this is the UNet.
         - n_steps: t: the number of steps in the diffusion process.
         - device: the device (e.g., CPU or GPU) on which the model's parameters and data should be stored.
         """
@@ -49,7 +49,9 @@ class DenoiseDiffusion:
         # Store the number of steps in the diffusion process.
         self.n_steps = n_steps
         # Set the variance of the diffusion process to beta.
-        self.sigma2 = self.beta
+        self.sigma2 = self.beta # GNOISE schedule, probably cannot be done from within the init method
+
+        # TODO add torch.distributions.poisson.Poisson; sample from it later with .sample(sample_shape=torch.Size([]))
 
 
     def q_xt_x0(self, x0: torch.Tensor, t: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -94,7 +96,7 @@ class DenoiseDiffusion:
         """
         # If no noise is provided, generate noise by sampling from a standard normal distribution (so from N(I,0)).
         if eps is None:
-            eps = torch.randn_like(x0)
+            eps = torch.randn_like(x0) # GNOISE
 
         # Get the distribution (so, $q(x_t|x_0)$) of the final latent state given the initial latent state and the current step in the diffusion process.
         mean, var = self.q_xt_x0(x0, t)
@@ -127,10 +129,10 @@ class DenoiseDiffusion:
         # Calculate the mean of the distribution.
         mean = 1 / (alpha ** 0.5) * (xt - (1 - alpha) / (1 - alpha_bar) ** 0.5 * eps_theta)
         # Get the variance of the distribution at the current step in the diffusion process.
-        var = gather(self.sigma2, t)
+        var = gather(self.sigma2, t) # GNOISE, noies schedule (e.g. sigma2 is beta, and beta is given by the schedule)
 
         # Sample from the distribution.
-        eps = torch.randn(xt.shape, device=xt.device)
+        eps = torch.randn(xt.shape, device=xt.device) # GNOISE
         return mean + (var ** 0.5) * eps
 
         """
@@ -180,12 +182,12 @@ class DenoiseDiffusion:
         # Get batch size
         batch_size = x0.shape[0]
         # Get random t for each sample in the batch
-        t = torch.randint(0, self.n_steps, (batch_size,), device=x0.device, dtype=torch.long)
+        t = torch.randint(0, self.n_steps, (batch_size,), device=x0.device, dtype=torch.long) # Randint gives  unfiormly distributed ints
 
         # Generate noise if it was not provided
         if noise is None:
             # Generate noise from a normal distribution with mean 0 and variance 1
-            noise = torch.randn_like(x0)
+            noise = torch.randn_like(x0) # GNOISE
 
         # Sample xₜ for q(xₜ | x₀)
         xt = self.q_sample(x0, t, eps=noise)
