@@ -67,6 +67,7 @@ class Configs(BaseConfigs):
         device (torch.device):           Device on which to run the model.
         eps_model (UNet):                U-Net model for the function `epsilon_theta`.
         diffusion (DenoiseDiffusion):    DDPM algorithm.
+        poisson_rng (Distribution):      Poisson distribution to sample random noise from.
         image_channels (int):            Number of channels in the image (e.g. 3 for RGB).
         image_size (int):                Size of the image.
         n_channels (int):                Number of channels in the initial feature map.
@@ -94,6 +95,10 @@ class Configs(BaseConfigs):
     eps_model: UNet
     # [DDPM algorithm](index.html)
     diffusion: DenoiseDiffusion
+    
+    # Define the Poisson random-number-generator rate.
+    poisson_rng_rate = 2 # Note: this may be manually changed as hyperparameter.
+    poisson_rng = torch.distributions.poisson.Poisson(torch.tensor([poisson_rng_rate]))
 
     # Defines the noise schedule. Possible options are 'linear' and 'cosine'.
     schedule_name = 'cosine'
@@ -147,7 +152,8 @@ class Configs(BaseConfigs):
         self.diffusion = DenoiseDiffusion(
             eps_model=self.eps_model,
             n_steps=self.n_steps,
-            schedule_name=self.schedule_name,
+            poisson_rng=self.poisson_rng
+            schedule_name=self.schedule_name, 
             device=self.device,
         )
 
