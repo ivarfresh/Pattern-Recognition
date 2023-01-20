@@ -18,6 +18,7 @@ import torch.nn.functional as F
 import torch.utils.data
 from torch import nn
 
+
 from utils import gather
 
 
@@ -26,7 +27,7 @@ class DenoiseDiffusion:
     ## Denoise Diffusion
     """
 
-    def __init__(self, eps_model: nn.Module, n_steps: int, schedule_name: str, device: torch.device):
+    def __init__(self, eps_model: nn.Module, n_steps: int, schedule_name: str, device: torch.device, poisson_rng: torch.distributions.distribution.Distribution):
         """
         Initialize a DenoiseDiffusion object.
 
@@ -41,6 +42,9 @@ class DenoiseDiffusion:
         self.n_steps = n_steps
         self.schedule_name = schedule_name
         self.device = device
+
+        # Holds the Poisson random-number-generator to draw Poisson noise from.
+        self.poisson_rng = poisson_rng
 
         # Create an increasing variance schedule for the diffusion process.
         self.beta = self.get_named_beta_schedule().to(self.device)
@@ -115,13 +119,18 @@ class DenoiseDiffusion:
 
         """
 
+        """
+        mean_poisson = 
+        
+        """
+
         # Gather the value of alpha_bar for the current step, and then compute sqrt(α̅ₜ ) * x_0
         mean = gather(self.alpha_bar, t) ** 0.5 * x0
         # The variance is then: (1 - α̅ₜ ) * I
         var = 1 - gather(self.alpha_bar, t)
         return mean, var
 
-    def q_sample(self, x0: torch.Tensor, t: torch.Tensor, eps: Optional[torch.Tensor] = None):
+    def q_sample(self, x0: torch.Tensor, t: torch.Tensor, eps: Optional[torch.Tensor] = None, eps_poisson: Optional[torch.Tensor] = None):
         """
         Sample from the distribution of the final latent state given the initial latent state and the current step in the diffusion process.
         The distribution is a Gaussian with mean equal to a weighted average of the initial latent state and the current latent state and variance equal to a fixed value.
@@ -140,6 +149,11 @@ class DenoiseDiffusion:
             eps = torch.randn_like(x0)
         # eps_gamma = torch.distributions.gamma.Gamma(3, 1000).sample(x0.shape)
         #  shape and rate = 1/scale, scale of the paper is 0.001?
+
+        if eps_poisson is None:
+            eps_poisson = self.poisson_rng.sample(x0.size)
+
+
 
         # Get the distribution (so, $q(x_t|x_0)$) of the final latent state given the initial latent state and the
         # current step in the diffusion process.
