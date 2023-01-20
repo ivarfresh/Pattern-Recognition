@@ -95,6 +95,9 @@ class Configs(BaseConfigs):
     # [DDPM algorithm](index.html)
     diffusion: DenoiseDiffusion
 
+    # Defines the noise schedule. Possible options are 'linear' and 'cosine'.
+    schedule_name = 'cosine'
+
     # Number of channels in the image. $3$ for RGB.
     image_channels: int = 3
     # Image size
@@ -107,7 +110,7 @@ class Configs(BaseConfigs):
     # The list of booleans that indicate whether to use attention at each resolution
     is_attention: List[int] = [False, False, False, True]
 
-    # Number of time steps $T$
+    # Number of time steps $T$ (with $T$ = 1_000 from Ho et al).
     n_steps: int = 1_000
     # Batch size
     batch_size: int = 64
@@ -144,6 +147,7 @@ class Configs(BaseConfigs):
         self.diffusion = DenoiseDiffusion(
             eps_model=self.eps_model,
             n_steps=self.n_steps,
+            schedule_name=self.schedule_name,
             device=self.device,
         )
 
