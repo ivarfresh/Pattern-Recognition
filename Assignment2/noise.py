@@ -175,6 +175,8 @@ class DenoiseDiffusion:
         pₜ(𝑥ₜ₋₁ | 𝑥ₜ) = 𝒩(𝑥ₜ₋₁; μₜ(𝑥ₜ, t), σ²ₜ𝐈)
         μₜ(𝑥ₜ, t) = 1/√αₜ (𝑥ₜ - εₜ(𝑥ₜ, t)βₜ/√(1-ᾱₜ))
 
+        # 1/( √αₜ 
+
         Args:
         - xt: a tensor representing the final latent state.
         - t: a tensor representing the current step in the diffusion process.
