@@ -98,7 +98,7 @@ class Configs(BaseConfigs):
     
     # Define the Poisson random-number-generator rate.
     poisson_rng_rate = 2 # Note: this may be manually changed as hyperparameter.
-    poisson_rng = torch.distributions.poisson.Poisson(torch.tensor([poisson_rng_rate]))
+    poisson_rng = torch.distributions.poisson.Poisson(poisson_rng_rate)
 
     # Defines the noise schedule. Possible options are 'linear' and 'cosine'.
     schedule_name = 'cosine'

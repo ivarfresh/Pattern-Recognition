@@ -119,10 +119,10 @@ class DenoiseDiffusion:
 
         """
 
-        """
-        mean_poisson = 
-        
-        """
+        '''
+        theta_poisson = torch.sqrt(gather(self.alpha_bar, t)) * self.theta_zero
+        return theta_poisson
+        '''
 
         # Gather the value of alpha_bar for the current step, and then compute sqrt(α̅ₜ ) * x_0
         mean = gather(self.alpha_bar, t) ** 0.5 * x0
@@ -144,16 +144,24 @@ class DenoiseDiffusion:
         A tensor representing a sample from the distribution.
 
         """
+
+        '''
+        if eps_poisson is None:
+            eps_poisson = self.poisson_rng.sample(x0.shape)
+        
+        # Get the distribution (so, $q(x_t|x_0)$) of the final latent state given the initial latent state and the
+        # current step in the diffusion process.
+        theta_poisson = self.q_xt_x0(x0, t)
+
+        # Sample from that distribution $q(x_t|x_0)$.
+        return theta_poisson + theta_poisson * eps
+        '''
+
         # If no noise is provided, generate noise by sampling from a standard normal distribution (so from N(I,0)).
         if eps is None:
             eps = torch.randn_like(x0)
         # eps_gamma = torch.distributions.gamma.Gamma(3, 1000).sample(x0.shape)
         #  shape and rate = 1/scale, scale of the paper is 0.001?
-
-        if eps_poisson is None:
-            eps_poisson = self.poisson_rng.sample(x0.size)
-
-
 
         # Get the distribution (so, $q(x_t|x_0)$) of the final latent state given the initial latent state and the
         # current step in the diffusion process.
@@ -189,40 +197,38 @@ class DenoiseDiffusion:
 
         # Sample from the distribution.
         eps = torch.randn(xt.shape, device=xt.device) # GNOISE: eps = torch.distributions.gamma.Gamma(3, 1000).sample(xt.shape).to_device(xt.device)
-        return mean + (var ** 0.5)  # GNOISE: mean + gamma?
 
-        """
-        #### Sample from $\textcolor{lightgreen}{p_\theta}(x_{t-1}|x_t)$
-        \begin{align}
-        \textcolor{lightgreen}{p_\theta}(x_{t-1} | x_t) &= \mathcal{N}\big(x_{t-1};
-        \textcolor{lightgreen}{\mu_\theta}(x_t, t), \sigma_t^2 \mathbf{I} \big) \\
-        \textcolor{lightgreen}{\mu_\theta}(x_t, t)
-          &= \frac{1}{\sqrt{\alpha_t}} \Big(x_t -
-            \frac{\beta_t}{\sqrt{1-\bar\alpha_t}}\textcolor{lightgreen}{\epsilon_\theta}(x_t, t) \Big)
-        \end{align}
-
-
-        # $\textcolor{lightgreen}{\epsilon_\theta}(x_t, t)$
+        '''
+        # Get the output of the denoising process, which is a function that maps the
+        # final latent state back to the observation space (e.g., the space of clean images).
         eps_theta = self.eps_model(xt, t)
-        # [gather](utils.html) $\bar\alpha_t$
+        # Get the value of alpha_bar at the current step in the diffusion process.
         alpha_bar = gather(self.alpha_bar, t)
-        # $\alpha_t$
+        # Get the value of αₜ at the current step in the diffusion process.
         alpha = gather(self.alpha, t)
-        # $\frac{\beta}{\sqrt{1-\bar\alpha_t}}$
-        eps_coef = (1 - alpha) / (1 - alpha_bar) ** .5
-        # $$\frac{1}{\sqrt{\alpha_t}} \Big(x_t -
-        #      \frac{\beta_t}{\sqrt{1-\bar\alpha_t}}\textcolor{lightgreen}{\epsilon_\theta}(x_t, t) \Big)$$
-        mean = 1 / (alpha ** 0.5) * (xt - eps_coef * eps_theta)
-        # $\sigma^2$
-        var = gather(self.sigma2, t)
 
-        # $\epsilon \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$
-        eps = torch.randn(xt.shape, device=xt.device)
-        # Sample
-        return mean + (var ** .5) * eps
-        """
+        ## This is changed:
 
-    def loss(self, x0: torch.Tensor, noise: Optional[torch.Tensor] = None):
+        # Calculate the mean of the distribution.
+        mean = 1 / (alpha ** 0.5) * (xt - (1 - alpha) / (1 - alpha_bar) ** 0.5 * eps_theta)
+        # Get the variance of the distribution at the current step in the diffusion process.
+        var = gather(self.sigma2, t)  # GNOISE, noies schedule (e.g. sigma2 is beta, and beta is given by the schedule)
+
+        # Sample from the distribution.
+        eps_poisson = self.poisson_rng(xt.shape)
+
+        # torch.randn(xt.shape, device=xt.device) # GNOISE: eps = torch.distributions.gamma.Gamma(3, 1000).sample(xt.shape).to_device(xt.device)
+
+        return mean + (var ** 0.5) * eps # GNOISE: mean + gamma?
+        '''
+
+        return mean + (var ** 0.5) * eps # GNOISE: mean + gamma?
+
+        
+
+       
+
+    def loss(self, x0: torch.Tensor, noise: Optional[torch.Tensor] = None, noise_poisson: Optional[torch.Tensor] = None):
         """
         Calculate the loss for the given initial latent state. The loss is calculated as the expectation of the squared difference between noise ε and the output of a model εₜ given input √ᾱₜ𝑥₀ + √1 - ᾱₜε at time t.
         Simplified Loss: L_simple(θ) = 𝔼ₜ,𝑥₀,ε[|| ε - εₜ(𝑥₀√ᾱₜ + ε√(1-ᾱₜ), t) ||²]
@@ -240,6 +246,21 @@ class DenoiseDiffusion:
         # Get random t for each sample in the batch
         t = torch.randint(0, self.n_steps, (batch_size,), device=x0.device,
                           dtype=torch.long)  # Randint gives  unfiormly distributed ints
+
+        '''
+        # Generate noise if it was not provided
+        if noise_poisson is None:
+            # Generate noise from a normal distribution with mean 0 and variance 1
+            noise_poisson = self.poisson_rng.sample(x0.shape)
+
+        # Sample xₜ for q(xₜ | x₀)
+        xt = self.q_sample(x0, t, eps=noise_poisson)
+        # Get εₜ(x₀√ᾱₜ  + ε√1-ᾱₜ, t)
+        eps_theta = self.eps_model(xt, t)
+
+        # MSE loss
+        return F.mse_loss(noise_poisson, eps_theta)
+        '''
 
         # Generate noise if it was not provided
         if noise is None:
