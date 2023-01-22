@@ -20,13 +20,15 @@ from torch import nn
 
 from utils import gather
 
+import matplotlib.pyplot as plt
+
 
 class DenoiseDiffusion:
     """
     ## Denoise Diffusion
     """
 
-    def __init__(self, eps_model: nn.Module, n_steps: int, schedule_name: str, device: torch.device):
+    def __init__(self, eps_model: nn.Module, n_steps: int, schedule_name: str, noise_type: str, device: torch.device):
         """
         Initialize a DenoiseDiffusion object.
 
@@ -40,6 +42,7 @@ class DenoiseDiffusion:
         self.eps_model = eps_model
         self.n_steps = n_steps
         self.schedule_name = schedule_name
+        self.noise_type = noise_type
         self.device = device
 
         # Create an increasing variance schedule for the diffusion process.
@@ -49,8 +52,16 @@ class DenoiseDiffusion:
         self.alpha = 1. - self.beta
         # Compute the cumulative product of alpha.
         self.alpha_bar = torch.cumprod(self.alpha, dim=0)
+
         # Set the variance of the diffusion process to beta.
         self.sigma2 = self.beta
+
+        # Set theta of the diffusion process to a constant. theta = scale
+        self.theta = 0.001
+        # Compute the k based on beta, alpha and theta. k = shape (nakhmani, modification, eq 20, second line)
+        self.k = self.beta / (self.alpha * self.theta ** 2)
+        # Compute the cumulative sum of k.
+        self.k_bar = torch.cumsum(self.k, dim=0)  # k_bar = cumulative shape (nakhmani eq 21, second line)
 
     def get_named_beta_schedule(self) -> torch.Tensor:
         """
@@ -117,9 +128,18 @@ class DenoiseDiffusion:
 
         # Gather the value of alpha_bar for the current step, and then compute sqrt(α̅ₜ ) * x_0
         mean = gather(self.alpha_bar, t) ** 0.5 * x0
-        # The variance is then: (1 - α̅ₜ ) * I
-        var = 1 - gather(self.alpha_bar, t)
-        return mean, var
+        if self.noise_type == 'gaussian':
+            # The variance is then: (1 - α̅ₜ ) * I
+            var = 1 - gather(self.alpha_bar, t)
+            return mean, var, None
+        elif self.noise_type == 'gamma':
+            # The shape parameter is then: sqrt(α̅ₜ) * θ
+            scale = gather(self.alpha_bar, t) ** 0.5 * self.theta # TODO: scale and shape are the size of
+            # The shape parameter is then: k̅ₜ
+            shape = gather(self.k_bar, t) # TODO: Does the order have an effect on the values? paper: first gather, then transformations, here vice versa
+            return mean, shape, scale
+        else:
+            raise NotImplementedError(f"unknown beta schedule: {self.noise_type}")
 
     def q_sample(self, x0: torch.Tensor, t: torch.Tensor, eps: Optional[torch.Tensor] = None):
         """
@@ -135,17 +155,24 @@ class DenoiseDiffusion:
         A tensor representing a sample from the distribution.
 
         """
-        # If no noise is provided, generate noise by sampling from a standard normal distribution (so from N(I,0)).
-        if eps is None:
-            eps = torch.randn_like(x0)
-        # eps_gamma = torch.distributions.gamma.Gamma(3, 1000).sample(x0.shape)
-        #  shape and rate = 1/scale, scale of the paper is 0.001?
-
         # Get the distribution (so, $q(x_t|x_0)$) of the final latent state given the initial latent state and the
         # current step in the diffusion process.
-        mean, var = self.q_xt_x0(x0, t)
-        # Sample from that distribution $q(x_t|x_0)$.
-        return mean + (var ** 0.5) * eps  # GNOISE: mean + gamma?
+        if self.noise_type == 'gaussian':
+            mean, var, _ = self.q_xt_x0(x0, t)
+            # If no noise is provided, generate noise by sampling from a standard normal distribution (so from N(I,0)).
+            if eps is None:
+                eps = torch.randn_like(x0)
+            # Sample from that distribution $q(x_t|x_0)$ with Gaussian noise.
+            return mean + (var ** 0.5) * eps
+        elif self.noise_type == 'gamma':
+            mean, shape, scale = self.q_xt_x0(x0, t)
+            # If no noise is provided, generate noise by sampling from a gamma distribution (so from G(k,θ)).
+            if eps is None:
+                eps = torch.distributions.gamma.Gamma(shape, 1 / scale).sample()
+            # Sample from that distribution $q(x_t|x_0)$ with Gamma noise. Nahkmani et al. eq 21
+            return mean + (eps - shape * scale)
+        else:
+            raise NotImplementedError(f"unknown beta schedule: {self.noise_type}")
 
     def p_sample(self, xt: torch.Tensor, t: torch.Tensor):
         """
@@ -174,39 +201,9 @@ class DenoiseDiffusion:
         var = gather(self.sigma2, t)  # GNOISE, noies schedule (e.g. sigma2 is beta, and beta is given by the schedule)
 
         # Sample from the distribution.
-        eps = torch.randn(xt.shape, device=xt.device) # GNOISE: eps = torch.distributions.gamma.Gamma(3, 1000).sample(xt.shape).to_device(xt.device)
-        return mean + (var ** 0.5)  # GNOISE: mean + gamma?
-
-        """
-        #### Sample from $\textcolor{lightgreen}{p_\theta}(x_{t-1}|x_t)$
-        \begin{align}
-        \textcolor{lightgreen}{p_\theta}(x_{t-1} | x_t) &= \mathcal{N}\big(x_{t-1};
-        \textcolor{lightgreen}{\mu_\theta}(x_t, t), \sigma_t^2 \mathbf{I} \big) \\
-        \textcolor{lightgreen}{\mu_\theta}(x_t, t)
-          &= \frac{1}{\sqrt{\alpha_t}} \Big(x_t -
-            \frac{\beta_t}{\sqrt{1-\bar\alpha_t}}\textcolor{lightgreen}{\epsilon_\theta}(x_t, t) \Big)
-        \end{align}
-
-
-        # $\textcolor{lightgreen}{\epsilon_\theta}(x_t, t)$
-        eps_theta = self.eps_model(xt, t)
-        # [gather](utils.html) $\bar\alpha_t$
-        alpha_bar = gather(self.alpha_bar, t)
-        # $\alpha_t$
-        alpha = gather(self.alpha, t)
-        # $\frac{\beta}{\sqrt{1-\bar\alpha_t}}$
-        eps_coef = (1 - alpha) / (1 - alpha_bar) ** .5
-        # $$\frac{1}{\sqrt{\alpha_t}} \Big(x_t -
-        #      \frac{\beta_t}{\sqrt{1-\bar\alpha_t}}\textcolor{lightgreen}{\epsilon_\theta}(x_t, t) \Big)$$
-        mean = 1 / (alpha ** 0.5) * (xt - eps_coef * eps_theta)
-        # $\sigma^2$
-        var = gather(self.sigma2, t)
-
-        # $\epsilon \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$
-        eps = torch.randn(xt.shape, device=xt.device)
-        # Sample
-        return mean + (var ** .5) * eps
-        """
+        eps = torch.randn(xt.shape,
+                          device=xt.device)  # GNOISE: eps = torch.distributions.gamma.Gamma(3, 1000).sample(xt.shape).to_device(xt.device)
+        return mean + (var ** 0.5) * eps  # GNOISE: mean + gamma?
 
     def loss(self, x0: torch.Tensor, noise: Optional[torch.Tensor] = None):
         """
@@ -227,10 +224,18 @@ class DenoiseDiffusion:
         t = torch.randint(0, self.n_steps, (batch_size,), device=x0.device,
                           dtype=torch.long)  # Randint gives  unfiormly distributed ints
 
-        # Generate noise if it was not provided
-        if noise is None:
-            # Generate noise from a normal distribution with mean 0 and variance 1
-            noise = torch.randn_like(x0)  # GNOISE noise = torch.distributions.gamma.Gamma(3, 1000).sample(x0.shape)
+        if self.noise_type == 'gaussian':
+            # Generate noise if it was not provided
+            if noise is None:
+                # Generate noise from a normal distribution with mean 0 and variance 1
+                noise = torch.randn_like(x0)
+        elif self.noise_type == 'gamma':
+            mean, shape, scale = self.q_xt_x0(x0, t) # TODO: What parameters to gather here?
+            # If no noise is provided, generate noise by sampling from a gamma distribution (so from G(k,θ)).
+            if noise is None:
+                noise = torch.distributions.gamma.Gamma(shape, 1/scale).sample() # TODO: what is the correct input here?
+        else:
+            raise NotImplementedError(f"unknown beta schedule: {self.noise_type}")
 
         # Sample xₜ for q(xₜ | x₀)
         xt = self.q_sample(x0, t, eps=noise)
