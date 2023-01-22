@@ -33,7 +33,6 @@ from labml_helpers.device import DeviceConfigs
 from noise import DenoiseDiffusion
 from unet import UNet
 
-
 def main():
     # Create experiment
     experiment.create(name='diffuse', writers={'screen', 'labml'})
@@ -68,8 +67,7 @@ class Configs(BaseConfigs):
         device (torch.device):           Device on which to run the model.
         eps_model (UNet):                U-Net model for the function `epsilon_theta`.
         diffusion (DenoiseDiffusion):    DDPM algorithm.
-        schedule_name (str):             Function of the noise schedule
-        noise_type (str):                Distributional family applied as noise in the diffusion
+        poisson_rng (Distribution):      Poisson distribution to sample random noise from.
         image_channels (int):            Number of channels in the image (e.g. 3 for RGB).
         image_size (int):                Size of the image.
         n_channels (int):                Number of channels in the initial feature map.
@@ -85,6 +83,9 @@ class Configs(BaseConfigs):
         optimizer (torch.optim.Adam):               Optimizer for the model.
     """
 
+
+
+
     # Device to train the model on.
     # [`DeviceConfigs`](https://docs.labml.ai/api/helpers.html#labml_helpers.device.DeviceConfigs)
     #  picks up an available CUDA device or defaults to CPU.
@@ -94,11 +95,13 @@ class Configs(BaseConfigs):
     eps_model: UNet
     # [DDPM algorithm](index.html)
     diffusion: DenoiseDiffusion
+    
+    # Define the Poisson random-number-generator rate.
+    poisson_rng_rate = 2 # Note: this may be manually changed as hyperparameter.
+    poisson_rng = torch.distributions.poisson.Poisson(poisson_rng_rate)
 
     # Defines the noise schedule. Possible options are 'linear' and 'cosine'.
-    schedule_name = 'linear'
-    # Defines the noise type of the diffusion process. Possible options are 'gaussian' and 'gamma'.
-    noise_type = 'gaussian'
+    schedule_name = 'cosine'
 
     # Number of channels in the image. $3$ for RGB.
     image_channels: int = 3
@@ -149,8 +152,8 @@ class Configs(BaseConfigs):
         self.diffusion = DenoiseDiffusion(
             eps_model=self.eps_model,
             n_steps=self.n_steps,
-            schedule_name=self.schedule_name,
-            noise_type=self.noise_type,
+            poisson_rng=self.poisson_rng
+            schedule_name=self.schedule_name, 
             device=self.device,
         )
 
@@ -290,7 +293,6 @@ def mnist_dataset(c: Configs):
     Create MNIST dataset
     """
     return MNISTDataset(c.image_size)
-
 
 #
 if __name__ == '__main__':
