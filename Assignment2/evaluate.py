@@ -16,7 +16,14 @@ from torchvision.transforms.functional import to_pil_image, resize
 
 from labml import experiment, monit
 from noise import DenoiseDiffusion, gather
-from __main__ import Configs
+# from __main__ import Configs
+
+from labml import lab, tracker, experiment, monit
+from labml.configs import BaseConfigs, option
+from labml_helpers.device import DeviceConfigs
+from noise import DenoiseDiffusion
+from unet import UNet
+from typing import List, Tuple
 
 
 class Sampler:
@@ -266,11 +273,172 @@ class Sampler:
         return (xt - (1 - alpha_bar) ** 0.5 * eps) / (alpha_bar ** 0.5)
 
 
+class Configs(BaseConfigs):
+    """
+    Class for holding configuration parameters for training a DDPM model.
+
+    Attributes:
+        device (torch.device):           Device on which to run the model.
+        eps_model (UNet):                U-Net model for the function `epsilon_theta`.
+        diffusion (DenoiseDiffusion):    DDPM algorithm.
+        schedule_name (str):             Function of the noise schedule
+        noise_type (str):                Distributional family applied as noise in the diffusion
+        image_channels (int):            Number of channels in the image (e.g. 3 for RGB).
+        image_size (int):                Size of the image.
+        n_channels (int):                Number of channels in the initial feature map.
+        channel_multipliers (List[int]): Number of channels at each resolution.
+        is_attention (List[bool]):       Indicates whether to use attention at each resolution.
+        n_steps (int):                   Number of time steps.
+        batch_size (int):                Batch size.
+        n_samples (int):                 Number of samples to generate.
+        learning_rate (float):           Learning rate.
+        epochs (int):                    Number of training epochs.
+        dataset (torch.utils.data.Dataset):         Dataset to be used for training.
+        data_loader (torch.utils.data.DataLoader):  DataLoader for loading the data for training.
+        optimizer (torch.optim.Adam):               Optimizer for the model.
+    """
+
+    # Device to train the model on.
+    # [`DeviceConfigs`](https://docs.labml.ai/api/helpers.html#labml_helpers.device.DeviceConfigs)
+    #  picks up an available CUDA device or defaults to CPU.
+    device: torch.device = DeviceConfigs()
+
+    # U-Net model for $\textcolor{lightgreen}{\epsilon_\theta}(x_t, t)$
+    eps_model: UNet
+    # [DDPM algorithm](index.html)
+    diffusion: DenoiseDiffusion
+
+    # Defines the noise schedule. Possible options are 'linear' and 'cosine'.
+    schedule_name = 'linear'
+    # Defines the noise type of the diffusion process. Possible options are 'gaussian' and 'gamma'.
+    noise_type = 'gaussian'
+
+    # Number of channels in the image. $3$ for RGB.
+    image_channels: int = 3
+    # Image size
+    image_size: int = 32
+    # Number of channels in the initial feature map
+    n_channels: int = 64
+    # The list of channel numbers at each resolution.
+    # The number of channels is `channel_multipliers[i] * n_channels`
+    channel_multipliers: List[int] = [1, 2, 2, 4]
+    # The list of booleans that indicate whether to use attention at each resolution
+    is_attention: List[int] = [False, False, False, True]
+
+    # Number of time steps $T$ (with $T$ = 1_000 from Ho et al).
+    n_steps: int = 1_000
+    # Batch size
+    batch_size: int = 64
+    # Number of samples to generate
+    n_samples: int = 16
+    # Learning rate
+    learning_rate: float = 2e-5
+
+    # Number of training epochs
+    epochs: int = 1_000
+
+    # Dataset
+    dataset: torch.utils.data.Dataset
+    # Dataloader
+    data_loader: torch.utils.data.DataLoader
+
+    # Adam optimizer
+    optimizer: torch.optim.Adam
+
+    def init(self):
+        """
+        Initialize the model, dataset, and optimizer objects.
+        """
+
+        # Create $\textcolor{lightgreen}{\epsilon_\theta}(x_t, t)$ model
+        self.eps_model = UNet(
+            image_channels=self.image_channels,
+            n_channels=self.n_channels,
+            ch_mults=self.channel_multipliers,
+            is_attn=self.is_attention,
+        ).to(self.device)
+
+        # Create [DDPM class](index.html)
+        self.diffusion = DenoiseDiffusion(
+            eps_model=self.eps_model,
+            n_steps=self.n_steps,
+            schedule_name=self.schedule_name,
+            noise_type=self.noise_type,
+            device=self.device,
+        )
+
+        # Create dataloader
+        self.data_loader = torch.utils.data.DataLoader(self.dataset, self.batch_size, shuffle=True, pin_memory=True)
+        # Create optimizer
+        self.optimizer = torch.optim.Adam(self.eps_model.parameters(), lr=self.learning_rate)
+
+        # Image logging
+        tracker.set_image("sample", True)
+
+    def sample(self) -> None:
+        """
+        Generate samples from a trained Denoising Diffusion Probabilistic Model (DDPM).
+        """
+
+        with torch.no_grad():
+            # Sample from the noise distribution at the final time step: x_T ~ p(x_T) = N(x_T; 0, I)
+            x = torch.randn([self.n_samples, self.image_channels, self.image_size, self.image_size],
+                            device=self.device)
+
+            # Remove noise at each time step in reverse order (so remove noise for T steps)
+            for t_ in monit.iterate('Sample', self.n_steps):
+                # Get current time step
+                t = self.n_steps - t_ - 1
+                # Sample from the noise distribution at the current time step: x_{t-1} ~ p_theta(x_{t-1}|x_t)
+                x = self.diffusion.p_sample(x, x.new_full((self.n_samples,), t, dtype=torch.long))
+
+            # Log the final denoised samples
+            tracker.save('sample', x)
+
+    def train(self) -> None:
+        """
+        Train a Denoising Diffusion Probabilistic Model (DDPM) with the set dataloader.
+        """
+        # Iterate through the dataset
+        for data in monit.iterate('Train', self.data_loader):
+            # Increment global step
+            tracker.add_global_step()
+            # Move data to device
+            data = data.to(self.device)
+
+            # Make the gradients zero
+            self.optimizer.zero_grad()
+            # Calculate loss
+            loss = self.diffusion.loss(data)
+            # Compute gradients
+            loss.backward()
+            # Take an optimization step
+            self.optimizer.step()
+            # Track the loss
+            tracker.save('loss', loss)
+
+    def run(self):
+        """
+        ### Training loop
+        """
+        for _ in monit.loop(self.epochs):
+            # Train the model
+            self.train()
+            # Sample some images
+            self.sample()
+            # New line in the console
+            tracker.new_line()
+            # Save the model
+            experiment.save_checkpoint()
+
+
+
+
 def main():
     """Generate samples"""
 
     # Training experiment run UUID
-    run_uuid = "a44333ea251411ec8007d1a1762ed686"
+    run_uuid = "b3de06339b0c11edb8b3cc153195da84"
 
     # Start an evaluation
     experiment.evaluate()
