@@ -451,7 +451,7 @@ def main():
     """Generate samples"""
 
     # Training experiment run UUID
-    run_uuid = "b3de06339b0c11edb8b3cc153195da84"
+    run_uuid = "488841479b8711edb1dbcc153195da84"
 
     # Start an evaluation
     experiment.evaluate()
