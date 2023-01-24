@@ -232,7 +232,7 @@ class Sampler:
 
         # $$x_0 \sim \textcolor{lightgreen}{p_\theta}(x_0|x_t)$$
         x0 = self._sample_x0(xt, self.n_steps)
-
+        torch.save(x0,"model_output.pt")
         # Show images
         path = './result_image'
         isExists = os.path.exists(path)
