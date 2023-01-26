@@ -44,8 +44,8 @@ def main():
 
     # Set configurations. You can override the defaults by passing the values in the dictionary.
     experiment.configs(configs, {
-        'dataset': 'MNIST',  # 'CelebA'
-        'image_channels': 1,  # 3,
+        'dataset': 'CelebA',  # 'CelebA'
+        'image_channels': 3,  # 3,
         'epochs': 5,  # 100,
     })
 

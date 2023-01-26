@@ -419,14 +419,28 @@ class UNet(Module):
             else:
                 # Get the skip connection from first half of U-Net and concatenate
                 s = h.pop()
-                print(f'S size no condat:              {s.size()}')
-                print(f'X size no concat:              {x.size()}')
+                
+                #print(f'S size no condat:              {s.size()}')
+                #print(f'X size no concat:              {x.size()}')
+                
                 x = torch.cat((x, s), dim=1)
+                
                 #print(f'S size yes concat: {s.size()}')
-                print(f'X concat S:                    {x.size()}')
+                #print(f'X concat S:                    {x.size()}')
                 #
                 x = m(x, t)
-                print(f'UP time emb (t) + img proj (x) {x.size()}')
+                
+                #print(f'UP time emb (t) + img proj (x) {x.size()}')
+                
+# =============================================================================
+#attempt to fix it
+#                 if x.size(dim =2) == s.size(dim=2):
+#                     x = torch.cat((x, s), dim=1)
+#                 elif x.size(dim =2) != s.size(dim=2):
+#                     print(s[3])
+#                     s = s.expand_as(x)
+#                 
+# =============================================================================
         # Final normalization and convolution
         return self.final(self.act(self.norm(x)))
 
