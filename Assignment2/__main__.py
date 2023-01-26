@@ -231,7 +231,7 @@ class CelebADataset(torch.utils.data.Dataset):
         folder = lab.get_data_path() / 'celebA'
         # List of files
         self._files = [p for p in folder.glob(f'**/*.jpg')]
-
+        #print(len(self._files))                                        #shows us size of loaded dataset
         # Transformations to resize the image and convert to tensor
         self._transform = torchvision.transforms.Compose([
             torchvision.transforms.Resize(image_size),
@@ -256,6 +256,7 @@ class CelebADataset(torch.utils.data.Dataset):
         """
 
         img = Image.open(self._files[index])
+        #img.show()                                 #shows the images load
         return self._transform(img)
 
 
