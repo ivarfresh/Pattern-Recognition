@@ -161,7 +161,7 @@ class DenoiseDiffusion:
             mean, var, _ = self.q_xt_x0(x0, t)
             # If no noise is provided, generate noise by sampling from a standard normal distribution (so from N(I,0)).
             if eps is None:
-                eps = torch.randn_like(x0)
+                eps = torch.randn_like(x0) # GNOISE
             # Sample from that distribution $q(x_t|x_0)$ with Gaussian noise.
             return mean + (var ** 0.5) * eps
         elif self.noise_type == 'gamma':
@@ -228,7 +228,7 @@ class DenoiseDiffusion:
             # Generate noise if it was not provided
             if noise is None:
                 # Generate noise from a normal distribution with mean 0 and variance 1
-                noise = torch.randn_like(x0)
+                noise = torch.randn_like(x0) # GNOISE
         elif self.noise_type == 'gamma':
             mean, shape, scale = self.q_xt_x0(x0, t) # TODO: What parameters to gather here?
             # If no noise is provided, generate noise by sampling from a gamma distribution (so from G(k,θ)).
