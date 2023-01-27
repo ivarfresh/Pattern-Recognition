@@ -10,7 +10,7 @@ summary: >
 This is a [U-Net](../../unet/index.html) based model to predict noise
 $\textcolor{lightgreen}{\epsilon_\theta}(x_t, t)$.
 
-U-Net is a gets it's name from the U shape in the model diagram.
+U-Net gets it's name from the U shape in the model diagram.
 It processes a given image by progressively lowering (halving) the feature map resolution and then
 increasing the resolution.
 There are pass-through connection at each resolution.
@@ -96,6 +96,7 @@ class TimeEmbedding(nn.Module):
 
         return emb
 
+
 class ResidualBlock(Module):
     """
     ### Residual block
@@ -151,9 +152,11 @@ class ResidualBlock(Module):
         # Add the shortcut connection and return
         return h + self.shortcut(x)
 
+
 class RecurrentBlock(nn.Module):
 
     scale = 1  # scale of the bottleneck convolution channels
+
     def __init__(self, in_channels: int, out_channels: int, time_channels: int, recurrent=1):
         """
         * `in_channels` is the number of input channels
@@ -229,6 +232,7 @@ class RecurrentBlock(nn.Module):
             h = self.act3(h)
 
         return self.output(h)
+
 
 class AttentionBlock(Module):
     """
@@ -373,7 +377,7 @@ class MiddleBlock(Module):
     def forward(self, x: torch.Tensor, t: torch.Tensor):
         x = self.re1(x, t)
         x = self.attn(x)
-        #x = self.re2(x, t)
+        x = self.re2(x, t)
         return x
 
 
@@ -454,7 +458,11 @@ class UNet(Module):
             out_channels = in_channels * ch_mults[i]
             # Add `n_blocks`
             for _ in range(n_blocks):
+<<<<<<< Updated upstream
                 down.append(DownBlock(in_channels, out_channels, n_channels * 4, is_attn[i]))#, conv_block))
+=======
+                down.append(DownBlock(in_channels, out_channels, n_channels * 4, is_attn[i]))  # , conv_block))
+>>>>>>> Stashed changes
                 in_channels = out_channels
             # Down sample at all resolutions except the last
             if i < n_resolutions - 1:
@@ -475,10 +483,14 @@ class UNet(Module):
             # `n_blocks` at the same resolution
             out_channels = in_channels
             for _ in range(n_blocks):
+<<<<<<< Updated upstream
                 up.append(UpBlock(in_channels, out_channels, n_channels * 4, is_attn[i]))#, conv_block))
+=======
+                up.append(UpBlock(in_channels, out_channels, n_channels * 4, is_attn[i]))  # , conv_block))
+>>>>>>> Stashed changes
             # Final block to reduce the number of channels
             out_channels = in_channels // ch_mults[i]
-            up.append(UpBlock(in_channels, out_channels, n_channels * 4, is_attn[i]))
+            up.append(UpBlock(in_channels, out_channels, n_channels * 4, is_attn[i]))  # , conv_block))
             in_channels = out_channels
             # Up sample at all resolutions except last
             if i > 0:

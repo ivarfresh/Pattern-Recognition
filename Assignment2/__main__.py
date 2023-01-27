@@ -14,7 +14,7 @@ This trains a DDPM based model on CelebA HQ dataset. You can find the download i
 [discussion on fast.ai](https://forums.fast.ai/t/download-celeba-hq-dataset/45873/3).
 Save the images inside [`data/celebA` folder](#dataset_path).
 
-The paper had used a exponential moving average of the model with a decay of $0.9999$. We have skipped this for
+The paper had used an exponential moving average of the model with a decay of $0.9999$. We have skipped this for
 simplicity.
 
 (obtained from: From: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/diffusion/ddpm/experiment.py)
@@ -31,9 +31,6 @@ from labml.configs import BaseConfigs, option
 from labml_helpers.device import DeviceConfigs
 from noise import DenoiseDiffusion
 from unet import UNet
-
-#from torchview import draw_graph
-#from torchsummary import summary
 
 
 def main():
@@ -299,5 +296,11 @@ def mnist_dataset(c: Configs):
     """
     return CIFAR10Dataset(c.image_size)
 
+<<<<<<< Updated upstream
 if __name__ == '__main__':
     main()
+=======
+
+if __name__ == '__main__':
+    main()
+>>>>>>> Stashed changes
