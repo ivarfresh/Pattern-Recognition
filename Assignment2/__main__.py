@@ -8,7 +8,8 @@ summary: >
 
 # [Denoising Diffusion Probabilistic Models (DDPM)](index.html) training
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/diffusion/ddpm/experiment.ipynb)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]
+(https://colab.research.google.com/github/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/diffusion/ddpm/experiment.ipynb)
 
 This trains a DDPM based model on CelebA HQ dataset. You can find the download instruction in this
 [discussion on fast.ai](https://forums.fast.ai/t/download-celeba-hq-dataset/45873/3).
@@ -99,7 +100,7 @@ class Configs(BaseConfigs):
     # Image size
     image_size: int = 32
     # Number of channels in the initial feature map
-    n_channels: int = 64 #64
+    n_channels: int = 32  # 64
     # The list of channel numbers at each resolution.
     # The number of channels is `channel_multipliers[i] * n_channels`
     channel_multipliers: List[int] = [1, 2, 2, 4]
@@ -114,7 +115,7 @@ class Configs(BaseConfigs):
     n_steps: int = 1000
 
     # Batch size
-    batch_size: int = 32 #64
+    batch_size: int = 32  # 64
     # Number of samples to generate
     n_samples: int = 16
     # Learning rate
