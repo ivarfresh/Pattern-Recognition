@@ -89,6 +89,8 @@ class Configs(BaseConfigs):
     # [`DeviceConfigs`](https://docs.labml.ai/api/helpers.html#labml_helpers.device.DeviceConfigs)
     #  picks up an available CUDA device or defaults to CPU.
     device: torch.device = DeviceConfigs()
+    # Retrieve model information
+    show = True
 
     # U-Net model for $\textcolor{lightgreen}{\epsilon_\theta}(x_t, t)$
     eps_model: UNet
@@ -100,7 +102,7 @@ class Configs(BaseConfigs):
     # Image size
     image_size: int = 32
     # Number of channels in the initial feature map
-    n_channels: int = 32  # 64
+    n_channels: int = 64  # 64 (Limit is VRAM)
     # The list of channel numbers at each resolution.
     # The number of channels is `channel_multipliers[i] * n_channels`
     channel_multipliers: List[int] = [1, 2, 2, 4]
@@ -110,12 +112,12 @@ class Configs(BaseConfigs):
     convolutional_block = 'recurrent'
 
     # Defines the noise schedule. Possible options are 'linear' and 'cosine'.
-    schedule_name: str = 'cosine'
+    schedule_name: str = 'linear'
     # Number of time steps $T$ (with $T$ = 1_000 from Ho et al).
-    n_steps: int = 1000
+    n_steps: int = 1000 # 1000
 
     # Batch size
-    batch_size: int = 32  # 64
+    batch_size: int = 64  # 64 (Limit is VRAM)
     # Number of samples to generate
     n_samples: int = 16
     # Learning rate
@@ -153,6 +155,15 @@ class Configs(BaseConfigs):
             device=self.device,
         )
 
+        # Show the number of params used by the model
+        if self.show:
+            pytorch_total_params = sum(p.numel() for p in self.eps_model.parameters())
+            print(f'The total number of parameters are: {pytorch_total_params/1000}K')
+        # Visualize model architecture via forward pass
+        #   summary(self.eps_model, [next(iter(self.data_loader)).shape, (self.batch_size,)])
+        #   model_graph = draw_graph(model=UNet(), input_size=[(64,1,28,28), (64,)], expand_nested=True, device='meta')
+        #   model_graph.visual_graph
+
         # Create dataloader
         self.data_loader = torch.utils.data.DataLoader(self.dataset, self.batch_size, shuffle=True, pin_memory=True)
         # Create optimizer
@@ -161,10 +172,6 @@ class Configs(BaseConfigs):
         # Image logging
         tracker.set_image("sample", True)
 
-        # Visualize model architecture via forward pass
-        # summary(self.eps_model, [next(iter(self.data_loader)).shape, (self.batch_size,)])
-        # model_graph = draw_graph(model=UNet(), input_size=[(64,1,28,28), (64,)], expand_nested=True, device='meta')
-        # model_graph.visual_graph
 
     def sample(self) -> None:
         """

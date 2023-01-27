@@ -148,9 +148,9 @@ class ResidualBlock(Module):
 
 class RecurrentBlock(nn.Module):
 
-    scale = 1  # scale of the bottleneck convolution channels
+    scale = 2  # scale of the bottleneck convolution channels (limit is VRAM)
 
-    def __init__(self, in_channels: int, out_channels: int, time_channels: int, recurrent=1):
+    def __init__(self, in_channels: int, out_channels: int, time_channels: int, n_groups: int = 32, recurrent=1):
         """
         * `in_channels` is the number of input channels
         * `out_channels` is the number of input channels
@@ -163,35 +163,46 @@ class RecurrentBlock(nn.Module):
 
         # Group normalization and the input convolution layer
         self.conv_input = nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), bias=False)
+        self.act_input = Swish()
+        self.norm_input = nn.GroupNorm(n_groups, out_channels)
+
+        self.norm_skip = nn.GroupNorm(n_groups, out_channels)
         self.skip = nn.Conv2d(out_channels, out_channels,
                               kernel_size=(3, 3), stride=(1, 1), padding=(1, 1),  bias=False)
-        self.norm_skip = nn.BatchNorm2d(out_channels)
 
         # Group normalization and the first convolution layer
+        self.act1 = Swish()
         self.conv1 = nn.Conv2d(out_channels, out_channels * self.scale,
                                kernel_size=1, bias=False)
-        self.act1 = Swish()
 
         # # Group normalization and the second convolution layer
+        self.act2 = Swish()
         self.conv2 = nn.Conv2d(out_channels * self.scale, out_channels * self.scale,
                                kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        self.act2 = Swish()
 
         # Group normalization and the third convolution layer
+        self.act3 = Swish()
         self.conv3 = nn.Conv2d(out_channels * self.scale, out_channels,
                                kernel_size=(1, 1), bias=False)
-        self.act3 = Swish()
 
-        self.output = nn.Identity()
+
+        self.norm_out = nn.GroupNorm(n_groups, out_channels * self.scale)
+
+        # If the number of input channels is not equal to the number of output channels we have to
+        # project the shortcut connection
+        if in_channels != out_channels:
+            self.shortcut = nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1))
+        else:
+            self.shortcut = nn.Identity()
 
         # Linear layer for time embeddings
         self.time_emb = nn.Linear(time_channels, out_channels * self.scale)
 
-        # need BatchNorm for each time step for training to work well
+        # Need GroupNorm for each time step for training. One for each corresponding layer.
         for r in range(self.recurrent):
-            setattr(self, f'norm1_{r}', nn.BatchNorm2d(out_channels * self.scale))
-            setattr(self, f'norm2_{r}', nn.BatchNorm2d(out_channels * self.scale))
-            setattr(self, f'norm3_{r}', nn.BatchNorm2d(out_channels))
+            setattr(self, f'norm1_{r}', nn.GroupNorm(n_groups, out_channels * self.scale)) # mod# nn.BatchNorm2d(out_channels * self.scale))
+            setattr(self, f'norm2_{r}', nn.GroupNorm(n_groups, out_channels * self.scale)) #nn.BatchNorm2d(out_channels * self.scale))
+            setattr(self, f'norm3_{r}', nn.GroupNorm(n_groups, out_channels)) #nn.BatchNorm2d(out_channels))
 
     def forward(self, x: torch.Tensor, t: torch.Tensor):
         """
@@ -199,34 +210,36 @@ class RecurrentBlock(nn.Module):
         * `t` has shape `[batch_size, time_channels]`
         """
         h = self.conv_input(x)
+        h = self.act_input(h)
+        h = self.norm_input(h)
 
         for r in range(self.recurrent):
             if r == 0:
-                shortcut = self.norm_skip(self.skip(h))
+                inner_shortcut = self.norm_skip(self.skip(h))
             else:
-                shortcut = h
+                inner_shortcut = h
 
             # First convolution layer in block 't'.
             h = self.conv1(h)
-            h = getattr(self, f'norm1_{r}')(h)
             h = self.act1(h)
+            h = getattr(self, f'norm1_{r}')(h)
 
             h += self.time_emb(t)[:, :, None, None]
 
             # Second convolution layer in block 't'.
             h = self.conv2(h)
-            h = getattr(self, f'norm2_{r}')(h)
             h = self.act2(h)
+            h = getattr(self, f'norm2_{r}')(h)
 
             # Third convolution layer in block 't'.
             h = self.conv3(h)
+            h = self.act3(h)
             h = getattr(self, f'norm3_{r}')(h)
 
             # Skip connection
-            h += shortcut
-            h = self.act3(h)
+            h += inner_shortcut
 
-        return self.output(h)
+        return h + self.shortcut(x)
 
 
 class AttentionBlock(Module):
