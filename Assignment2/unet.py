@@ -161,23 +161,23 @@ class RecurrentBlock(nn.Module):
 
         self.recurrent = recurrent
 
-        # Group normalization and the first convolution layer
+        # Group normalization and the input convolution layer
         self.conv_input = nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), bias=False)
         self.skip = nn.Conv2d(out_channels, out_channels,
                               kernel_size=(3, 3), stride=(1, 1), padding=(1, 1),  bias=False)
         self.norm_skip = nn.BatchNorm2d(out_channels)
 
-        # Group normalization and the second convolution layer
+        # Group normalization and the first convolution layer
         self.conv1 = nn.Conv2d(out_channels, out_channels * self.scale,
                                kernel_size=1, bias=False)
         self.act1 = Swish()
 
-        # # Group normalization and the third convolution layer
+        # # Group normalization and the second convolution layer
         self.conv2 = nn.Conv2d(out_channels * self.scale, out_channels * self.scale,
                                kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
         self.act2 = Swish()
 
-        # Group normalization and the first convolution layer
+        # Group normalization and the third convolution layer
         self.conv3 = nn.Conv2d(out_channels * self.scale, out_channels,
                                kernel_size=(1, 1), bias=False)
         self.act3 = Swish()
@@ -199,7 +199,6 @@ class RecurrentBlock(nn.Module):
         * `t` has shape `[batch_size, time_channels]`
         """
         h = self.conv_input(x)
-        #h = x
 
         for r in range(self.recurrent):
             if r == 0:
@@ -207,19 +206,19 @@ class RecurrentBlock(nn.Module):
             else:
                 shortcut = h
 
-            # First convolution layer in block 't'
+            # First convolution layer in block 't'.
             h = self.conv1(h)
             h = getattr(self, f'norm1_{r}')(h)
             h = self.act1(h)
 
             h += self.time_emb(t)[:, :, None, None]
 
-            # Second convolution layer in block 't'
+            # Second convolution layer in block 't'.
             h = self.conv2(h)
             h = getattr(self, f'norm2_{r}')(h)
             h = self.act2(h)
 
-            # Third convolution layer in block 't'
+            # Third convolution layer in block 't'.
             h = self.conv3(h)
             h = getattr(self, f'norm3_{r}')(h)
 
@@ -291,11 +290,8 @@ class AttentionBlock(Module):
         # Add skip connection
         res += x
 
-        # Change to shape `[batch_size, in_channels, height, width]`
-        res = res.permute(0, 2, 1).view(batch_size, n_channels, height, width)
-
-        #
-        return res
+        # Change to shape `[batch_size, in_channels, height, width]
+        return res.permute(0, 2, 1).view(batch_size, n_channels, height, width)
 
 
 class DownBlock(Module):
@@ -327,7 +323,8 @@ class UpBlock(Module):
     """
     ### Up block
 
-    This combines `Residual/RecurrentBlock` and `AttentionBlock`. These are used in the second half of U-Net at each resolution.
+    This combines `Residual/RecurrentBlock` and `AttentionBlock`.
+    These are used in the second half of U-Net at each resolution.
     """
 
     def __init__(self, in_channels: int, out_channels: int, time_channels: int,
@@ -424,7 +421,8 @@ class UNet(Module):
         """
         * `image_channels` is the number of channels in the image. $3$ for RGB.
         * `n_channels` is number of channels in the initial feature map that we transform the image into
-        * `ch_mults` is the list of channel numbers at each resolution. The number of channels is `ch_mults[i] * n_channels`
+        * `ch_mults` is the list of channel numbers at each resolution.
+                     The number of channels is `ch_mults[i] * n_channels`
         * `is_attn` is a list of booleans that indicate whether to use attention at each resolution
         * `n_blocks` is the number of `UpDownBlocks` at each resolution
         """
