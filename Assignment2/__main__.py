@@ -99,14 +99,14 @@ class Configs(BaseConfigs):
     # Image size
     image_size: int = 32
     # Number of channels in the initial feature map
-    n_channels: int = 64
+    n_channels: int = 64 #64
     # The list of channel numbers at each resolution.
     # The number of channels is `channel_multipliers[i] * n_channels`
     channel_multipliers: List[int] = [1, 2, 2, 4]
     # The list of booleans that indicate whether to use attention at each resolution
     is_attention: List[int] = [False, False, False, True]
     # Convolutional block type used in the UNet blocks. Possible options are 'residual' and 'recurrent'.
-    convolutional_block = 'residual'
+    convolutional_block = 'recurrent'
 
     # Defines the noise schedule. Possible options are 'linear' and 'cosine'.
     schedule_name: str = 'cosine'
@@ -114,13 +114,13 @@ class Configs(BaseConfigs):
     n_steps: int = 1000
 
     # Batch size
-    batch_size: int = 64
+    batch_size: int = 32 #64
     # Number of samples to generate
     n_samples: int = 16
     # Learning rate
     learning_rate: float = 2e-5
     # Number of training epochs
-    epochs: int = 1_000
+    epochs: int = 1000
 
     # Dataset
     dataset: torch.utils.data.Dataset

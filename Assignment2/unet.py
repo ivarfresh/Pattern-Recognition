@@ -162,7 +162,7 @@ class RecurrentBlock(nn.Module):
         self.recurrent = recurrent
 
         # Group normalization and the first convolution layer
-        #self.conv_input = nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), bias=False)
+        self.conv_input = nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), bias=False)
         self.skip = nn.Conv2d(out_channels, out_channels,
                               kernel_size=(3, 3), stride=(1, 1), padding=(1, 1),  bias=False)
         self.norm_skip = nn.BatchNorm2d(out_channels)
@@ -173,9 +173,9 @@ class RecurrentBlock(nn.Module):
         self.act1 = Swish()
 
         # # Group normalization and the third convolution layer
-        # self.conv2 = nn.Conv2d(out_channels * self.scale, out_channels * self.scale,
-        #                        kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        # self.act2 = Swish()
+        self.conv2 = nn.Conv2d(out_channels * self.scale, out_channels * self.scale,
+                               kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+        self.act2 = Swish()
 
         # Group normalization and the first convolution layer
         self.conv3 = nn.Conv2d(out_channels * self.scale, out_channels,
@@ -190,7 +190,7 @@ class RecurrentBlock(nn.Module):
         # need BatchNorm for each time step for training to work well
         for r in range(self.recurrent):
             setattr(self, f'norm1_{r}', nn.BatchNorm2d(out_channels * self.scale))
-            #setattr(self, f'norm2_{r}', nn.BatchNorm2d(out_channels * self.scale))
+            setattr(self, f'norm2_{r}', nn.BatchNorm2d(out_channels * self.scale))
             setattr(self, f'norm3_{r}', nn.BatchNorm2d(out_channels))
 
     def forward(self, x: torch.Tensor, t: torch.Tensor):
@@ -198,8 +198,8 @@ class RecurrentBlock(nn.Module):
         * `x` has shape `[batch_size, in_channels, height, width]`
         * `t` has shape `[batch_size, time_channels]`
         """
-        #h = self.conv_input(x)
-        h = x
+        h = self.conv_input(x)
+        #h = x
 
         for r in range(self.recurrent):
             if r == 0:
@@ -214,10 +214,10 @@ class RecurrentBlock(nn.Module):
 
             h += self.time_emb(t)[:, :, None, None]
 
-            # # Second convolution layer in block 't'
-            # h = self.conv2(h)
-            # h = getattr(self, f'norm2_{r}')(h)
-            # h = self.act2(h)
+            # Second convolution layer in block 't'
+            h = self.conv2(h)
+            h = getattr(self, f'norm2_{r}')(h)
+            h = self.act2(h)
 
             # Third convolution layer in block 't'
             h = self.conv3(h)
@@ -366,9 +366,9 @@ class MiddleBlock(Module):
             self.attn = AttentionBlock(n_channels)
             self.re2 = ResidualBlock(n_channels, n_channels, time_channels)
         if conv_block == 'recurrent':
-            self.re1 = RecurrentBlock(n_channels, n_channels, time_channels, 2)
+            self.re1 = RecurrentBlock(n_channels, n_channels, time_channels, 4)
             self.attn = AttentionBlock(n_channels)
-            self.re2 = RecurrentBlock(n_channels, n_channels, time_channels, 2)
+            self.re2 = RecurrentBlock(n_channels, n_channels, time_channels, 4)
 
     def forward(self, x: torch.Tensor, t: torch.Tensor):
         x = self.re1(x, t)
@@ -452,7 +452,7 @@ class UNet(Module):
             out_channels = in_channels * ch_mults[i]
             # Add `n_blocks`
             for _ in range(n_blocks):
-                down.append(DownBlock(in_channels, out_channels, n_channels * 4, is_attn[i]))  # , conv_block))
+                down.append(DownBlock(in_channels, out_channels, n_channels * 4, is_attn[i], conv_block))
                 in_channels = out_channels
             # Down sample at all resolutions except the last
             if i < n_resolutions - 1:
@@ -473,10 +473,10 @@ class UNet(Module):
             # `n_blocks` at the same resolution
             out_channels = in_channels
             for _ in range(n_blocks):
-                up.append(UpBlock(in_channels, out_channels, n_channels * 4, is_attn[i]))  # , conv_block))
+                up.append(UpBlock(in_channels, out_channels, n_channels * 4, is_attn[i], conv_block))
             # Final block to reduce the number of channels
             out_channels = in_channels // ch_mults[i]
-            up.append(UpBlock(in_channels, out_channels, n_channels * 4, is_attn[i]))  # , conv_block))
+            up.append(UpBlock(in_channels, out_channels, n_channels * 4, is_attn[i], conv_block))
             in_channels = out_channels
             # Up sample at all resolutions except last
             if i > 0:
