@@ -40,11 +40,11 @@ def main():
 
     # LOAD_CHECKPOINT = True
     LOAD_CHECKPOINT = False
-    MY_UUID = 'AbeSaveTesting' 
+    MY_UUID = 'recurrent' 
 
     # Create experiment
     experiment.create(
-        name='diffuse', 
+        name='diffuse',
         writers={'screen', 'labml'},
         uuid=MY_UUID,
     )
@@ -55,14 +55,14 @@ def main():
         print(f'Status: Device is using GPU: {torch.cuda.is_available()}')
 
         # for exp in ['recurrent', 'residual']:
-        for exp in ['residual']:
+        for exp in ['recurrent']:
             configs.convolutional_block = exp
 
             # Set configurations. You can override the defaults by passing the values in the dictionary.
             experiment.configs(configs, {
-                'dataset': 'MNIST',  # 'CIFAR10', 'CelebA' 'MNIST'
-                'image_channels': 1,  # 3, 3, 1
-                'epochs': 2,  # 100, 100, 5
+                'dataset': 'CIFAR10',  # 'CIFAR10', 'CelebA' 'MNIST'
+                'image_channels': 3,  # 3, 3, 1
+                'epochs': 100,  # 100, 100, 5
             })
 
             # Initialize
