@@ -105,7 +105,7 @@ class Configs(BaseConfigs):
     # Image size
     image_size: int = 32
     # Number of channels in the initial feature map
-    n_channels: int = 64  # 64 (Limit is VRAM)
+    n_channels: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
     # The list of channel numbers at each resolution.
     # The number of channels is `channel_multipliers[i] * n_channels`
     channel_multipliers: List[int] = [1, 2, 2, 4]
@@ -117,10 +117,10 @@ class Configs(BaseConfigs):
     # Defines the noise schedule. Possible options are 'linear' and 'cosine'.
     schedule_name: str = 'linear'
     # Number of time steps $T$ (with $T$ = 1_000 from Ho et al).
-    n_steps: int = 1000 # 1000
+    n_steps: int = 1000  # 1000 (Default: Ho et al.)
 
     # Batch size
-    batch_size: int = 64  # 64 (Limit is VRAM)
+    batch_size: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
     # Number of samples to generate
     n_samples: int = 16
     # Learning rate
@@ -170,7 +170,6 @@ class Configs(BaseConfigs):
 
         # Image logging
         tracker.set_image("sample", True)
-
 
     def sample(self) -> None:
         """
