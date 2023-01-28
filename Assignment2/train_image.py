@@ -15,12 +15,22 @@ import numpy as np
 batch_size = 64
 
 # MNIST Dataset
-train_dataset = datasets.MNIST(root='.Assignment2/data/',
+# train_dataset = datasets.MNIST(root='.Assignment2/data/',
+#                                train=True,
+#                                transform=transforms.ToTensor(),
+#                                download=True)
+
+# test_dataset = datasets.MNIST(root='.Assignment2/data/',
+#                               train=False,
+#                               transform=transforms.ToTensor())
+
+
+train_dataset = datasets.CIFAR10(root='.Assignment2/data/',
                                train=True,
                                transform=transforms.ToTensor(),
                                download=True)
 
-test_dataset = datasets.MNIST(root='.Assignment2/data/',
+test_dataset = datasets.CIFAR10(root='.Assignment2/data/',
                               train=False,
                               transform=transforms.ToTensor())
 
@@ -32,6 +42,8 @@ train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
 test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
                                           batch_size=batch_size,
                                           shuffle=False)
+
+
 
 
 
