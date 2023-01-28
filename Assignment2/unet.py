@@ -197,9 +197,9 @@ class RecurrentBlock(nn.Module):
 
         # Need GroupNorm for each time step for training. One for each corresponding layer.
         for r in range(self.recurrent):
-            setattr(self, f'norm1_{r}', nn.GroupNorm(n_groups, out_channels * self.scale)) # mod# nn.BatchNorm2d(out_channels * self.scale))
-            #setattr(self, f'norm2_{r}', nn.GroupNorm(n_groups, out_channels * self.scale)) #nn.BatchNorm2d(out_channels * self.scale))
-            setattr(self, f'norm3_{r}', nn.GroupNorm(n_groups, out_channels)) #nn.BatchNorm2d(out_channels))
+            setattr(self, f'norm1_{r}', nn.GroupNorm(n_groups, out_channels * self.scale))
+            #  setattr(self, f'norm2_{r}', nn.GroupNorm(n_groups, out_channels * self.scale))
+            setattr(self, f'norm3_{r}', nn.GroupNorm(n_groups, out_channels))
 
     def forward(self, x: torch.Tensor, t: torch.Tensor):
         """
