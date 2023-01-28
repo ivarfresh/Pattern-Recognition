@@ -148,7 +148,7 @@ class ResidualBlock(Module):
 
 class RecurrentBlock(nn.Module):
 
-    scale = 1  # scale of the bottleneck convolution channels (limit is VRAM)
+    scale = 2  # scale of the bottleneck convolution channels (limit is VRAM)
 
     def __init__(self, in_channels: int, out_channels: int, time_channels: int, n_groups: int = 32, recurrent=1):
         """
