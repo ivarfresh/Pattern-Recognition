@@ -1,12 +1,12 @@
-    check_repo_dirty: true
-    data_path: 'data'
-    experiments_path: 'logs'
-    analytics_path: 'analytics'
-    web_api:
-    web_api_frequency: 60
-    web_api_verify_connection: true
-    web_api_open_browser: true
-    indicators:
-      - class_name: Scalar
-        is_print: True
-        name: '*'
+analytics_path: analytics
+check_repo_dirty: true
+data_path: data
+experiments_path: logs
+indicators:
+- class_name: Scalar
+  is_print: true
+  name: '*'
+web_api: https://app.labml.ai/run/a27d0e3e9ea811edbb81448a5bd816a0
+web_api_frequency: 60
+web_api_open_browser: true
+web_api_verify_connection: true

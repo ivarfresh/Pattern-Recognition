@@ -22,6 +22,7 @@ simplicity.
 """
 
 from typing import List
+import yaml
 
 import torch
 import torch.utils.data
@@ -36,7 +37,7 @@ from unet import UNet
 
 def main():
     # Create experiment
-    experiment.create(name='diffuse', writers={'screen', 'labml'})
+    experiment.create(name='diffuse', writers={'screen', 'labml', 'web_api'})
 
     # Create configurations
     configs = Configs()
@@ -159,6 +160,11 @@ class Configs(BaseConfigs):
         if self.show:
             pytorch_total_params = sum(p.numel() for p in self.eps_model.parameters())
             print(f'The total number of parameters are: {pytorch_total_params}')
+            with open('.labml.yaml', 'r') as f:
+                labml_config = yaml.safe_load(f)
+                labml_config['web_api'] = f'https://app.labml.ai/run/{experiment.get_uuid()}'
+            with open('.labml.yaml', 'w') as f:
+                yaml.dump(labml_config, f)
         # Visualize model architecture via forward pass
         #   summary(self.eps_model, [next(iter(self.data_loader)).shape, (self.batch_size,)])
         #   model_graph = draw_graph(model=UNet(), input_size=[(64,1,28,28), (64,)], expand_nested=True, device='meta')
