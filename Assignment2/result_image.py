@@ -286,6 +286,7 @@ class Sampler:
         return (xt - (1 - alpha_bar) ** 0.5 * eps) / (alpha_bar ** 0.5)
 
 
+
 class Configs(BaseConfigs):
     """
     Class for holding configuration parameters for training a DDPM model.
@@ -294,13 +295,13 @@ class Configs(BaseConfigs):
         device (torch.device):           Device on which to run the model.
         eps_model (UNet):                U-Net model for the function `epsilon_theta`.
         diffusion (DenoiseDiffusion):    DDPM algorithm.
-        schedule_name (str):             Function of the noise schedule
-        noise_type (str):                Distributional family applied as noise in the diffusion
         image_channels (int):            Number of channels in the image (e.g. 3 for RGB).
         image_size (int):                Size of the image.
         n_channels (int):                Number of channels in the initial feature map.
         channel_multipliers (List[int]): Number of channels at each resolution.
         is_attention (List[bool]):       Indicates whether to use attention at each resolution.
+        convolutional_block (str):       Type of the convolutional block used
+        schedule_name (str):             Function of the noise schedule
         n_steps (int):                   Number of time steps.
         batch_size (int):                Batch size.
         n_samples (int):                 Number of samples to generate.
@@ -315,40 +316,41 @@ class Configs(BaseConfigs):
     # [`DeviceConfigs`](https://docs.labml.ai/api/helpers.html#labml_helpers.device.DeviceConfigs)
     #  picks up an available CUDA device or defaults to CPU.
     device: torch.device = DeviceConfigs()
+    # Retrieve model information
+    show = True
 
     # U-Net model for $\textcolor{lightgreen}{\epsilon_\theta}(x_t, t)$
     eps_model: UNet
     # [DDPM algorithm](index.html)
     diffusion: DenoiseDiffusion
 
-    # Defines the noise schedule. Possible options are 'linear' and 'cosine'.
-    schedule_name = 'linear'
-    # Defines the noise type of the diffusion process. Possible options are 'gaussian' and 'gamma'.
-    noise_type = 'gaussian'
-
     # Number of channels in the image. $3$ for RGB.
     image_channels: int = 3
     # Image size
     image_size: int = 32
     # Number of channels in the initial feature map
-    n_channels: int = 64
+    n_channels: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
     # The list of channel numbers at each resolution.
     # The number of channels is `channel_multipliers[i] * n_channels`
     channel_multipliers: List[int] = [1, 2, 2, 4]
     # The list of booleans that indicate whether to use attention at each resolution
     is_attention: List[int] = [False, False, False, True]
+    # Convolutional block type used in the UNet blocks. Possible options are 'residual' and 'recurrent'.
+    convolutional_block = 'residual'
 
+    # Defines the noise schedule. Possible options are 'linear' and 'cosine'.
+    schedule_name: str = 'linear'
     # Number of time steps $T$ (with $T$ = 1_000 from Ho et al).
-    n_steps: int = 1_000
+    n_steps: int = 1000  # 1000 (Default: Ho et al.)
+
     # Batch size
-    batch_size: int = 64
+    batch_size: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
     # Number of samples to generate
     n_samples: int = 16
     # Learning rate
     learning_rate: float = 2e-5
-
     # Number of training epochs
-    epochs: int = 1_000
+    epochs: int = 1000
 
     # Dataset
     dataset: torch.utils.data.Dataset
@@ -369,6 +371,7 @@ class Configs(BaseConfigs):
             n_channels=self.n_channels,
             ch_mults=self.channel_multipliers,
             is_attn=self.is_attention,
+            conv_block=self.convolutional_block
         ).to(self.device)
 
         # Create [DDPM class](index.html)
@@ -376,9 +379,13 @@ class Configs(BaseConfigs):
             eps_model=self.eps_model,
             n_steps=self.n_steps,
             schedule_name=self.schedule_name,
-            noise_type=self.noise_type,
             device=self.device,
         )
+
+        # Show the number of params used by the model
+        if self.show:
+            pytorch_total_params = sum(p.numel() for p in self.eps_model.parameters())
+            print(f'The total number of parameters are: {pytorch_total_params}')
 
         # Create dataloader
         self.data_loader = torch.utils.data.DataLoader(self.dataset, self.batch_size, shuffle=True, pin_memory=True)
@@ -408,10 +415,12 @@ class Configs(BaseConfigs):
             # Log the final denoised samples
             tracker.save('sample', x)
 
+
     def train(self) -> None:
         """
         Train a Denoising Diffusion Probabilistic Model (DDPM) with the set dataloader.
         """
+
         # Iterate through the dataset
         for data in monit.iterate('Train', self.data_loader):
             # Increment global step
@@ -438,7 +447,7 @@ class Configs(BaseConfigs):
             # Train the model
             self.train()
             # Sample some images
-            self.sample()
+            # self.sample()
             # New line in the console
             tracker.new_line()
             # Save the model
@@ -451,7 +460,7 @@ def main():
     """Generate samples"""
 
     # Training experiment run UUID
-    run_uuid = "488841479b8711edb1dbcc153195da84"
+    run_uuid = "d679d64a9f0111ed8e4ccc153195da84"
 
     # Start an evaluation
     experiment.evaluate()

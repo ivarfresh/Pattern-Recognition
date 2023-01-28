@@ -32,6 +32,7 @@ from labml.configs import BaseConfigs, option
 from labml_helpers.device import DeviceConfigs
 from noise import DenoiseDiffusion
 from unet import UNet
+import os
 
 
 def main():
@@ -192,6 +193,7 @@ class Configs(BaseConfigs):
             # Log the final denoised samples
             tracker.save('sample', x)
 
+
     def train(self) -> None:
         """
         Train a Denoising Diffusion Probabilistic Model (DDPM) with the set dataloader.
@@ -223,7 +225,7 @@ class Configs(BaseConfigs):
             # Train the model
             self.train()
             # Sample some images
-            self.sample()
+            # self.sample()
             # New line in the console
             tracker.new_line()
             # Save the model
