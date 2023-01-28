@@ -46,7 +46,7 @@ def main():
     experiment.configs(configs, {
         'dataset': 'MNIST',  # 'CIFAR10', 'CelebA' 'MNIST'
         'image_channels': 1,  # 3, 3, 1
-        'epochs': 5,  # 100, 100, 5
+        'epochs': 10,  # 100, 100, 5
     })
 
     # Initialize
@@ -158,7 +158,7 @@ class Configs(BaseConfigs):
         # Show the number of params used by the model
         if self.show:
             pytorch_total_params = sum(p.numel() for p in self.eps_model.parameters())
-            print(f'The total number of parameters are: {pytorch_total_params/1000}K')
+            print(f'The total number of parameters are: {pytorch_total_params}')
         # Visualize model architecture via forward pass
         #   summary(self.eps_model, [next(iter(self.data_loader)).shape, (self.batch_size,)])
         #   model_graph = draw_graph(model=UNet(), input_size=[(64,1,28,28), (64,)], expand_nested=True, device='meta')
