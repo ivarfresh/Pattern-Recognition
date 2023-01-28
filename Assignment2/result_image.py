@@ -43,35 +43,27 @@ class Sampler:
         self.image_channels = image_channels
         self.diffusion = diffusion
 
-        # $T$
+    
         self.n_steps = diffusion.n_steps
-        # $\textcolor{lightgreen}{\epsilon_\theta}(x_t, t)$
+    
         self.eps_model = diffusion.eps_model
-        # $\beta_t$
+    
         self.beta = diffusion.beta
-        # $\alpha_t$
+    
         self.alpha = diffusion.alpha
-        # $\bar\alpha_t$
+    
         self.alpha_bar = diffusion.alpha_bar
-        # $\bar\alpha_{t-1}$
+    
         alpha_bar_tm1 = torch.cat([self.alpha_bar.new_ones((1,)), self.alpha_bar[:-1]])
 
-        # To calculate
-        #
-        # \begin{align}
-        # q(x_{t-1}|x_t, x_0) &= \mathcal{N} \Big(x_{t-1}; \tilde\mu_t(x_t, x_0), \tilde\beta_t \mathbf{I} \Big) \\
-        # \tilde\mu_t(x_t, x_0) &= \frac{\sqrt{\bar\alpha_{t-1}}\beta_t}{1 - \bar\alpha_t}x_0
-        #                          + \frac{\sqrt{\alpha_t}(1 - \bar\alpha_{t-1})}{1-\bar\alpha_t}x_t \\
-        # \tilde\beta_t &= \frac{1 - \bar\alpha_{t-1}}{a}
-        # \end{align}
 
-        # $\tilde\beta_t$
+
         self.beta_tilde = self.beta * (1 - alpha_bar_tm1) / (1 - self.alpha_bar)
-        # $$\frac{\sqrt{\bar\alpha_{t-1}}\beta_t}{1 - \bar\alpha_t}$$
+    
         self.mu_tilde_coef1 = self.beta * (alpha_bar_tm1 ** 0.5) / (1 - self.alpha_bar)
-        # $$\frac{\sqrt{\alpha_t}(1 - \bar\alpha_{t-1}}{1-\bar\alpha_t}$$
+    
         self.mu_tilde_coef2 = (self.alpha ** 0.5) * (1 - alpha_bar_tm1) / (1 - self.alpha_bar)
-        # $\sigma^2 = \beta$
+    
         self.sigma2 = self.beta
 
     def show_image(self, img, title=""):
@@ -286,6 +278,7 @@ class Sampler:
         return (xt - (1 - alpha_bar) ** 0.5 * eps) / (alpha_bar ** 0.5)
 
 
+
 class Configs(BaseConfigs):
     """
     Class for holding configuration parameters for training a DDPM model.
@@ -294,13 +287,13 @@ class Configs(BaseConfigs):
         device (torch.device):           Device on which to run the model.
         eps_model (UNet):                U-Net model for the function `epsilon_theta`.
         diffusion (DenoiseDiffusion):    DDPM algorithm.
-        schedule_name (str):             Function of the noise schedule
-        noise_type (str):                Distributional family applied as noise in the diffusion
         image_channels (int):            Number of channels in the image (e.g. 3 for RGB).
         image_size (int):                Size of the image.
         n_channels (int):                Number of channels in the initial feature map.
         channel_multipliers (List[int]): Number of channels at each resolution.
         is_attention (List[bool]):       Indicates whether to use attention at each resolution.
+        convolutional_block (str):       Type of the convolutional block used
+        schedule_name (str):             Function of the noise schedule
         n_steps (int):                   Number of time steps.
         batch_size (int):                Batch size.
         n_samples (int):                 Number of samples to generate.
@@ -315,40 +308,41 @@ class Configs(BaseConfigs):
     # [`DeviceConfigs`](https://docs.labml.ai/api/helpers.html#labml_helpers.device.DeviceConfigs)
     #  picks up an available CUDA device or defaults to CPU.
     device: torch.device = DeviceConfigs()
+    # Retrieve model information
+    show = True
 
     # U-Net model for $\textcolor{lightgreen}{\epsilon_\theta}(x_t, t)$
     eps_model: UNet
     # [DDPM algorithm](index.html)
     diffusion: DenoiseDiffusion
 
-    # Defines the noise schedule. Possible options are 'linear' and 'cosine'.
-    schedule_name = 'linear'
-    # Defines the noise type of the diffusion process. Possible options are 'gaussian' and 'gamma'.
-    noise_type = 'gaussian'
-
     # Number of channels in the image. $3$ for RGB.
     image_channels: int = 3
     # Image size
     image_size: int = 32
     # Number of channels in the initial feature map
-    n_channels: int = 64
+    n_channels: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
     # The list of channel numbers at each resolution.
     # The number of channels is `channel_multipliers[i] * n_channels`
     channel_multipliers: List[int] = [1, 2, 2, 4]
     # The list of booleans that indicate whether to use attention at each resolution
     is_attention: List[int] = [False, False, False, True]
+    # Convolutional block type used in the UNet blocks. Possible options are 'residual' and 'recurrent'.
+    convolutional_block = 'residual'
 
+    # Defines the noise schedule. Possible options are 'linear' and 'cosine'.
+    schedule_name: str = 'linear'
     # Number of time steps $T$ (with $T$ = 1_000 from Ho et al).
-    n_steps: int = 1_000
+    n_steps: int = 1000  # 1000 (Default: Ho et al.)
+
     # Batch size
-    batch_size: int = 64
+    batch_size: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
     # Number of samples to generate
     n_samples: int = 16
     # Learning rate
     learning_rate: float = 2e-5
-
     # Number of training epochs
-    epochs: int = 1_000
+    epochs: int = 1000
 
     # Dataset
     dataset: torch.utils.data.Dataset
@@ -369,6 +363,7 @@ class Configs(BaseConfigs):
             n_channels=self.n_channels,
             ch_mults=self.channel_multipliers,
             is_attn=self.is_attention,
+            conv_block=self.convolutional_block
         ).to(self.device)
 
         # Create [DDPM class](index.html)
@@ -376,9 +371,13 @@ class Configs(BaseConfigs):
             eps_model=self.eps_model,
             n_steps=self.n_steps,
             schedule_name=self.schedule_name,
-            noise_type=self.noise_type,
             device=self.device,
         )
+
+        # Show the number of params used by the model
+        if self.show:
+            pytorch_total_params = sum(p.numel() for p in self.eps_model.parameters())
+            print(f'The total number of parameters are: {pytorch_total_params}')
 
         # Create dataloader
         self.data_loader = torch.utils.data.DataLoader(self.dataset, self.batch_size, shuffle=True, pin_memory=True)
@@ -412,6 +411,7 @@ class Configs(BaseConfigs):
         """
         Train a Denoising Diffusion Probabilistic Model (DDPM) with the set dataloader.
         """
+
         # Iterate through the dataset
         for data in monit.iterate('Train', self.data_loader):
             # Increment global step
@@ -451,7 +451,7 @@ def main():
     """Generate samples"""
 
     # Training experiment run UUID
-    run_uuid = "488841479b8711edb1dbcc153195da84"
+    run_uuid = "AbeSaveTesting" # NOTE: Update this with the uuid of the run that you want to sample from
 
     # Start an evaluation
     experiment.evaluate()
@@ -469,11 +469,11 @@ def main():
     # Set PyTorch modules for saving and loading
     experiment.add_pytorch_models({'eps_model': configs.eps_model})
 
-    # Load training experiment
+    # Load training experiment; in other words, load the (trained) diffusion model
     experiment.load(run_uuid)
 
     # Create sampler
-    sampler = Sampler(diffusion=configs.diffusion,
+    sampler = Sampler(diffusion=configs.diffusion, # This passes the (trained) model to the sampler.
                       image_channels=configs.image_channels,
                       image_size=configs.image_size,
                       device=configs.device)

@@ -35,33 +35,51 @@ from unet import UNet
 
 
 def main():
+    # Settings for restoring/creating experiment
+
+    # LOAD_CHECKPOINT = True
+    LOAD_CHECKPOINT = False
+    MY_UUID = 'AbeSaveTesting' 
+
     # Create experiment
-    experiment.create(name='diffuse', writers={'screen', 'labml'})
+    experiment.create(
+        name='diffuse', 
+        writers={'screen', 'labml'},
+        uuid=MY_UUID,
+    )
 
-    # Create configurations
-    configs = Configs()
-    print(f'Status: Device is using GPU: {torch.cuda.is_available()}')
+    if not LOAD_CHECKPOINT:
+        # Create configurations
+        configs = Configs()
+        print(f'Status: Device is using GPU: {torch.cuda.is_available()}')
 
-    # for exp in ['recurrent', 'residual']:
-    for exp in ['residual']:
-        configs.convolutional_block = exp
+        # for exp in ['recurrent', 'residual']:
+        for exp in ['residual']:
+            configs.convolutional_block = exp
 
-        # Set configurations. You can override the defaults by passing the values in the dictionary.
-        experiment.configs(configs, {
-            'dataset': 'CIFAR10',  # 'CIFAR10', 'CelebA' 'MNIST'
-            'image_channels': 3,  # 3, 3, 1
-            'epochs': 100,  # 100, 100, 5
-        })
+            # Set configurations. You can override the defaults by passing the values in the dictionary.
+            experiment.configs(configs, {
+                'dataset': 'MNIST',  # 'CIFAR10', 'CelebA' 'MNIST'
+                'image_channels': 1,  # 3, 3, 1
+                'epochs': 2,  # 100, 100, 5
+            })
 
-        # Initialize
-        configs.init()
+            # Initialize
+            configs.init()
 
-        # Set models for saving and loading
-        experiment.add_pytorch_models({'eps_model': configs.eps_model})
+            # Set models for saving and loading
+            experiment.add_pytorch_models({'eps_model': configs.eps_model})
+    elif LOAD_CHECKPOINT:
+        checkpoint_uuid = MY_UUID # Note: set this to the checkpoint you want to load
+
+        # Load the experiment from 
+        experiment.load(checkpoint=checkpoint_uuid) # Note: passing 'run_uuid=UUID' will try restoring from a checkpoint within current run (or so I think)
+
 
         # Start and run the training loop
-        with experiment.start():
-            configs.run()
+    with experiment.start():
+        configs.run()
+
 
 
 class Configs(BaseConfigs):
