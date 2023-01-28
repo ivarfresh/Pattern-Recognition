@@ -484,7 +484,7 @@ def main():
         with torch.no_grad():
             # Sample an image with an denoising animation
             # sampler.sample_animation()
-            sampler.sample(n_samples = 20)
+            sampler.sample(n_samples = 100)
             if False:
                 # Get some images fro data
                 data = next(iter(configs.data_loader)).to(configs.device)
