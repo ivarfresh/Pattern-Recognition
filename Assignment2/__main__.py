@@ -40,7 +40,7 @@ def main():
 
     # LOAD_CHECKPOINT = True
     LOAD_CHECKPOINT = False
-    MY_UUID = 'recurrent' 
+    MY_UUID = 'AbeSaveTesting' 
 
     # Create experiment
     experiment.create(
@@ -60,9 +60,9 @@ def main():
 
             # Set configurations. You can override the defaults by passing the values in the dictionary.
             experiment.configs(configs, {
-                'dataset': 'CIFAR10',  # 'CIFAR10', 'CelebA' 'MNIST'
-                'image_channels': 3,  # 3, 3, 1
-                'epochs': 100,  # 100, 100, 5
+                'dataset': 'MNIST',  # 'CIFAR10', 'CelebA' 'MNIST'
+                'image_channels': 1,  # 3, 3, 1
+                'epochs': 3,  # 100, 100, 5
             })
 
             # Initialize
