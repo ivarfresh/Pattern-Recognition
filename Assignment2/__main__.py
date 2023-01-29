@@ -40,7 +40,7 @@ def main():
 
     # LOAD_CHECKPOINT = True
     LOAD_CHECKPOINT = False
-    MY_UUID = 'AbeSaveTesting' 
+    MY_UUID = 'recurrent' 
 
     # Create experiment
     experiment.create(
@@ -71,11 +71,11 @@ def main():
             # Set models for saving and loading
             experiment.add_pytorch_models({'eps_model': configs.eps_model})
     elif LOAD_CHECKPOINT:
-        checkpoint_uuid = MY_UUID # Note: set this to the checkpoint you want to load
+        checkpoint_uuid = 68816 # Note: set this to the checkpoint you want to load
 
-        # Load the experiment from 
-        experiment.load(checkpoint=checkpoint_uuid) # Note: passing 'run_uuid=UUID' will try restoring from a checkpoint within current run (or so I think)
+        # Load the experiment from
 
+        experiment.load(run_uuid = MY_UUID) # Note: passing 'run_uuid=UUID' will try restoring from a checkpoint within current run (or so I think)
 
         # Start and run the training loop
     with experiment.start():
