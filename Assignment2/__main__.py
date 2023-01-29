@@ -38,9 +38,9 @@ import os
 def main():
     # Settings for restoring/creating experiment
 
-    # LOAD_CHECKPOINT = True
-    LOAD_CHECKPOINT = True
-    MY_UUID = 'recurrent' 
+    LOAD_CHECKPOINT = False # True, False
+    MY_UUID = 'AbeSaveTesting2' 
+    EXP = 'recurrent' # 'recurrent', 'residual'
 
     # Create experiment
     experiment.create(
@@ -49,54 +49,40 @@ def main():
         uuid=MY_UUID,
     )
 
+    # Create configurations
+    configs = Configs()
+    print(f'Status: Device is using GPU: {torch.cuda.is_available()}')
+
+    # Set the model
+    configs.convolutional_block = EXP
+
+    # Set configurations. You can override the defaults by passing the values in the dictionary.
+    experiment.configs(configs, {
+        'dataset': 'MNIST',  # 'CIFAR10', 'CelebA' 'MNIST'
+        'image_channels': 1,  # 3, 3, 1
+        'epochs': 5,  # 100, 100, 5
+    })
+
+    # Initialize
+    configs.init()
+
+    # Set models for saving and loading
+    experiment.add_pytorch_models({'eps_model': configs.eps_model})
+
     if not LOAD_CHECKPOINT:
-        # Create configurations
-        configs = Configs()
-        print(f'Status: Device is using GPU: {torch.cuda.is_available()}')
+        # Start the experiment
+        with experiment.start():
+            configs.run()   
 
-        # for exp in ['recurrent', 'residual']:
-        for exp in ['recurrent']:
-            configs.convolutional_block = exp
-
-            # Set configurations. You can override the defaults by passing the values in the dictionary.
-            experiment.configs(configs, {
-                'dataset': 'MNIST',  # 'CIFAR10', 'CelebA' 'MNIST'
-                'image_channels': 1,  # 3, 3, 1
-                'epochs': 3,  # 100, 100, 5
-            })
-
-            # Initialize
-            configs.init()
-
-            # Set models for saving and loading
-            experiment.add_pytorch_models({'eps_model': configs.eps_model})
     elif LOAD_CHECKPOINT:
-        checkpoint_uuid = 68816 # Note: set this to the checkpoint you want to load
+        checkpoint_uuid = MY_UUID # Note: set this to the checkpoint you want to load
 
-        # Load the experiment from
+        # Load the experiment from 
+        experiment.load(run_uuid=checkpoint_uuid) # Note: there's also an optional checkpoint number param (checkpoint=[int])
 
-    # Create configs
-        configs = Configs()
-        for exp in ['recurrent']:
-            configs.convolutional_block = exp
-        # Load custom configuration of the training run
-        configs_dict = experiment.load_configs(MY_UUID)
-        # Set configurations
-        experiment.configs(configs, configs_dict)
-
-        # Initialize
-        configs.init()
-
-        # Set PyTorch modules for saving and loading
-        experiment.add_pytorch_models({'eps_model': configs.eps_model})
-
-
-        experiment.load(run_uuid = MY_UUID) # Note: passing 'run_uuid=UUID' will try restoring from a checkpoint within current run (or so I think)
-
-        # Start and run the training loop
-    with experiment.start():
-        configs.run()
-
+        # Start the experiment (note: not using with experiment.start() when loading)
+        with experiment.start():
+            configs.run()   
 
 
 class Configs(BaseConfigs):
