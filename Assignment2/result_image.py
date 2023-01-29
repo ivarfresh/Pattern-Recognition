@@ -456,11 +456,12 @@ class Configs(BaseConfigs):
 
 
 
+
 def main():
     """Generate samples"""
 
     # Training experiment run UUID
-    run_uuid = "d679d64a9f0111ed8e4ccc153195da84"
+    run_uuid = "recurrent"
 
     # Start an evaluation
     experiment.evaluate()
