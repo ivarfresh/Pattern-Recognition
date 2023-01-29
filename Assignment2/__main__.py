@@ -39,7 +39,7 @@ def main():
     # Settings for restoring/creating experiment
 
     # LOAD_CHECKPOINT = True
-    LOAD_CHECKPOINT = False
+    LOAD_CHECKPOINT = True
     MY_UUID = 'recurrent' 
 
     # Create experiment
@@ -74,6 +74,22 @@ def main():
         checkpoint_uuid = 68816 # Note: set this to the checkpoint you want to load
 
         # Load the experiment from
+
+    # Create configs
+        configs = Configs()
+        for exp in ['recurrent']:
+            configs.convolutional_block = exp
+        # Load custom configuration of the training run
+        configs_dict = experiment.load_configs(MY_UUID)
+        # Set configurations
+        experiment.configs(configs, configs_dict)
+
+        # Initialize
+        configs.init()
+
+        # Set PyTorch modules for saving and loading
+        experiment.add_pytorch_models({'eps_model': configs.eps_model})
+
 
         experiment.load(run_uuid = MY_UUID) # Note: passing 'run_uuid=UUID' will try restoring from a checkpoint within current run (or so I think)
 
@@ -132,7 +148,8 @@ class Configs(BaseConfigs):
     # The list of booleans that indicate whether to use attention at each resolution
     is_attention: List[int] = [False, False, False, True]
     # Convolutional block type used in the UNet blocks. Possible options are 'residual' and 'recurrent'.
-    convolutional_block = 'residual'
+    # convolutional_block = 'residual'
+    convolutional_block = 'recurrent'
 
     # Defines the noise schedule. Possible options are 'linear' and 'cosine'.
     schedule_name: str = 'linear'
