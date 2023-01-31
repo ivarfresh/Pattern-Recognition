@@ -24,7 +24,7 @@ class DenoiseDiffusion:
     ## Denoise Diffusion
     """
 
-    def __init__(self, eps_model: nn.Module, n_steps: int, schedule_name: str, device: torch.device):
+    def __init__(self, eps_model: nn.Module, n_steps: int, device: torch.device):
         """
         Initialize a DenoiseDiffusion object.
 
@@ -39,7 +39,6 @@ class DenoiseDiffusion:
         super().__init__()
         self.eps_model = eps_model
         self.n_steps = n_steps
-        self.schedule_name = schedule_name
         self.device = device
 
         # Create an increasing variance schedule for the diffusion process.
@@ -52,12 +51,6 @@ class DenoiseDiffusion:
         # Set the variance of the diffusion process to beta.
         self.sigma2 = self.beta
 
-        # Set theta of the diffusion process to a constant. theta = scale
-        self.theta = 0.001
-        # Compute the k based on beta, alpha and theta. k = shape (nakhmani, modification, eq 20, second line)
-        self.k = self.beta / (self.alpha * self.theta ** 2)
-        # Compute the cumulative sum of k.
-        self.k_bar = torch.cumsum(self.k, dim=0)  # k_bar = cumulative shape (nakhmani eq 21, second line)
 
     def get_named_beta_schedule(self) -> torch.Tensor:
         """
@@ -68,18 +61,11 @@ class DenoiseDiffusion:
         they are committed to maintain backwards compatibility.
         """
 
-        if self.schedule_name == 'linear':
-            # Linear schedule from Ho et al., extended to work for any number of diffusion steps.
-            scale = 1000 / self.n_steps
-            beta_start = scale * 0.0001
-            beta_end = scale * 0.02
-            return torch.linspace(beta_start, beta_end, self.n_steps, dtype=torch.float32)
-        elif self.schedule_name == 'cosine':
-            # Cosine schedule from Nichol et al
-            return self.betas_for_alpha_bar(lambda t: math.cos((t + 0.008) / 1.008 * math.pi / 2) ** 2, )
-        else:
-            raise NotImplementedError(f'Unknown beta schedule: {self.schedule_name}.'
-                                      f' Possible options are: "linear" and "cosine".')
+        # Linear schedule from Ho et al., extended to work for any number of diffusion steps.
+        scale = 1000 / self.n_steps
+        beta_start = scale * 0.0001
+        beta_end = scale * 0.02
+        return torch.linspace(beta_start, beta_end, self.n_steps, dtype=torch.float32)
 
     def betas_for_alpha_bar(self, alpha_bar: get_named_beta_schedule, max_beta: int = 0.999) -> torch.Tensor:
         """

@@ -20,69 +20,71 @@ simplicity.
 
 (obtained from: From: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/diffusion/ddpm/experiment.py)
 """
+import os
+import shutil
 
 from typing import List
 
 import torch
 import torch.utils.data
 import torchvision
+import torchvision.transforms as T
+from torch.nn.utils import clip_grad_value_
 
 from labml import lab, tracker, experiment, monit
 from labml.configs import BaseConfigs, option
 from labml_helpers.device import DeviceConfigs
 from noise import DenoiseDiffusion
 from unet import UNet
-import os
+
 
 
 def main():
     # Settings for restoring/creating experiment
-
     LOAD_CHECKPOINT = False # True, False
-    MY_UUID = 'AbeSaveTesting2' 
+    UUID = 'AbeSaveTesting2'
     EXP = 'recurrent' # 'recurrent', 'residual'
+
+    print(f'Status: Device is using GPU: {torch.cuda.is_available()}')
 
     # Create experiment
     experiment.create(
         name='diffuse',
         writers={'screen', 'labml'},
-        uuid=MY_UUID,
+        uuid=UUID,
     )
 
     # Create configurations
     configs = Configs()
-    print(f'Status: Device is using GPU: {torch.cuda.is_available()}')
-
     # Set the model
     configs.convolutional_block = EXP
-
     # Set configurations. You can override the defaults by passing the values in the dictionary.
     experiment.configs(configs, {
         'dataset': 'MNIST',  # 'CIFAR10', 'CelebA' 'MNIST'
         'image_channels': 1,  # 3, 3, 1
-        'epochs': 5,  # 100, 100, 5
+        'epochs': 15,  # 100, 100, 5
     })
-
     # Initialize
     configs.init()
 
     # Set models for saving and loading
     experiment.add_pytorch_models({'eps_model': configs.eps_model})
 
+    # Start a new experiment
     if not LOAD_CHECKPOINT:
+        # Reset the experiment
+        if os.path.exists(f'{os.getcwd()}\logs\diffuse\{UUID}'):
+            shutil.rmtree(f'{os.getcwd()}\logs\diffuse\{UUID}')
         # Start the experiment
         with experiment.start():
-            configs.run()   
+            configs.run()
 
+    # Load previous experiment
     elif LOAD_CHECKPOINT:
-        checkpoint_uuid = MY_UUID # Note: set this to the checkpoint you want to load
-
-        # Load the experiment from 
-        experiment.load(run_uuid=checkpoint_uuid) # Note: there's also an optional checkpoint number param (checkpoint=[int])
-
+        experiment.load(run_uuid=UUID)
         # Start the experiment (note: not using with experiment.start() when loading)
         with experiment.start():
-            configs.run()   
+            configs.run()
 
 
 class Configs(BaseConfigs):
@@ -91,20 +93,23 @@ class Configs(BaseConfigs):
 
     Attributes:
         device (torch.device):           Device on which to run the model.
+        show (bool):                     Extract model information.
         eps_model (UNet):                U-Net model for the function `epsilon_theta`.
         diffusion (DenoiseDiffusion):    DDPM algorithm.
         image_channels (int):            Number of channels in the image (e.g. 3 for RGB).
         image_size (int):                Size of the image.
         n_channels (int):                Number of channels in the initial feature map.
+        epochs (int):                    Number of training epochs.
+        batch_size (int):                Batch size.
+        clip (float):                    Magnitude of maximal gradients allowed.
+        dropout (float):                 The probability for the dropout of units.
         channel_multipliers (List[int]): Number of channels at each resolution.
         is_attention (List[bool]):       Indicates whether to use attention at each resolution.
         convolutional_block (str):       Type of the convolutional block used
-        schedule_name (str):             Function of the noise schedule
         n_steps (int):                   Number of time steps.
-        batch_size (int):                Batch size.
         n_samples (int):                 Number of samples to generate.
         learning_rate (float):           Learning rate.
-        epochs (int):                    Number of training epochs.
+
         dataset (torch.utils.data.Dataset):         Dataset to be used for training.
         data_loader (torch.utils.data.DataLoader):  DataLoader for loading the data for training.
         optimizer (torch.optim.Adam):               Optimizer for the model.
@@ -115,7 +120,7 @@ class Configs(BaseConfigs):
     #  picks up an available CUDA device or defaults to CPU.
     device: torch.device = DeviceConfigs()
     # Retrieve model information
-    show = True
+    show: bool = True
 
     # U-Net model for $\textcolor{lightgreen}{\epsilon_\theta}(x_t, t)$
     eps_model: UNet
@@ -128,28 +133,30 @@ class Configs(BaseConfigs):
     image_size: int = 32
     # Number of channels in the initial feature map
     n_channels: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
+
+    # Batch size
+    batch_size: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
+    # Number of training epochs
+    epochs: int = 1000
+
+    # Learning rate
+    learning_rate: float = 2e-5
+    # Set maximal gradient value
+    clip: float = 1.0
+    # Set the dropout probability
+    dropout: float = 0.1
     # The list of channel numbers at each resolution.
     # The number of channels is `channel_multipliers[i] * n_channels`
     channel_multipliers: List[int] = [1, 2, 2, 4]
     # The list of booleans that indicate whether to use attention at each resolution
     is_attention: List[int] = [False, False, False, True]
     # Convolutional block type used in the UNet blocks. Possible options are 'residual' and 'recurrent'.
-    # convolutional_block = 'residual'
-    convolutional_block = 'recurrent'
+    convolutional_block: str = 'recurrent'
 
-    # Defines the noise schedule. Possible options are 'linear' and 'cosine'.
-    schedule_name: str = 'linear'
     # Number of time steps $T$ (with $T$ = 1_000 from Ho et al).
     n_steps: int = 1000  # 1000 (Default: Ho et al.)
-
-    # Batch size
-    batch_size: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
     # Number of samples to generate
     n_samples: int = 16
-    # Learning rate
-    learning_rate: float = 2e-5
-    # Number of training epochs
-    epochs: int = 1000
 
     # Dataset
     dataset: torch.utils.data.Dataset
@@ -169,6 +176,7 @@ class Configs(BaseConfigs):
             image_channels=self.image_channels,
             n_channels=self.n_channels,
             ch_mults=self.channel_multipliers,
+            dropout=self.dropout,
             is_attn=self.is_attention,
             conv_block=self.convolutional_block
         ).to(self.device)
@@ -177,7 +185,6 @@ class Configs(BaseConfigs):
         self.diffusion = DenoiseDiffusion(
             eps_model=self.eps_model,
             n_steps=self.n_steps,
-            schedule_name=self.schedule_name,
             device=self.device,
         )
 
@@ -185,7 +192,8 @@ class Configs(BaseConfigs):
         if self.show:
             pytorch_total_params = sum(p.numel() for p in self.eps_model.parameters())
             print(f'The total number of parameters are: {pytorch_total_params}')
-
+        # Data augmentation
+        self.dataset.data = self.augment(self.dataset.data)
         # Create dataloader
         self.data_loader = torch.utils.data.DataLoader(self.dataset, self.batch_size, shuffle=True, pin_memory=True)
         # Create optimizer
@@ -214,6 +222,17 @@ class Configs(BaseConfigs):
             # Log the final denoised samples
             tracker.save('sample', x)
 
+    def augment(self, img: torch.Tensor) -> torch.Tensor:
+        if len(img.shape) == 3:
+            img = img[:, None, :, :]
+
+        transformations = [T.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.5),
+                           T.RandomAffine(degrees=90, translate=(0, 0.5), scale=(0.5, 0.5), shear=(0, 0.5))]
+
+        for transform in transformations:
+            img_trans = transform(img)
+            img = torch.cat((img_trans, img), dim=0)
+        return torch.squeeze(img)
 
     def train(self) -> None:
         """
@@ -233,6 +252,8 @@ class Configs(BaseConfigs):
             loss = self.diffusion.loss(data)
             # Compute gradients
             loss.backward()
+            # Clip model gradients
+            clip_grad_value_(parameters=self.eps_model.parameters(), clip_value=self.clip)
             # Take an optimization step
             self.optimizer.step()
             # Track the loss
@@ -246,7 +267,7 @@ class Configs(BaseConfigs):
             # Train the model
             self.train()
             # Sample some images
-            # self.sample()
+            self.sample()
             # New line in the console
             tracker.new_line()
             # Save the model
@@ -259,9 +280,9 @@ class MNISTDataset(torchvision.datasets.MNIST):
     """
 
     def __init__(self, image_size):
-        transform = torchvision.transforms.Compose([
-            torchvision.transforms.Resize(image_size),
-            torchvision.transforms.ToTensor(),
+        transform = T.Compose([
+            T.Resize(image_size),
+            T.ToTensor(),
         ])
 
         super().__init__(str(lab.get_data_path()), train=True, download=True, transform=transform)
@@ -280,13 +301,13 @@ def mnist_dataset(c: Configs):
 
 class CIFAR10Dataset(torchvision.datasets.CIFAR10):
     """
-    ### MNIST dataset
+    ### CIFAR10 dataset
     """
 
     def __init__(self, image_size):
-        transform = torchvision.transforms.Compose([
-            torchvision.transforms.Resize(image_size),
-            torchvision.transforms.ToTensor(),
+        transform = T.Compose([
+            T.Resize(image_size),
+            T.ToTensor(),
         ])
 
         super().__init__(str(lab.get_data_path()), train=True, download=True, transform=transform)
@@ -294,13 +315,12 @@ class CIFAR10Dataset(torchvision.datasets.CIFAR10):
     def __getitem__(self, item):
         return super().__getitem__(item)[0]
 
-
-@option(Configs.dataset, 'CIFAR10')
-def mnist_dataset(c: Configs):
-    """
-    Create CIFAR10 dataset
-    """
-    return CIFAR10Dataset(c.image_size)
+    @option(Configs.dataset, 'CIFAR10')
+    def mnist_dataset(c: Configs):
+        """
+        Create CIFAR10 dataset
+        """
+        return CIFAR10Dataset(c.image_size)
 
 
 if __name__ == '__main__':
