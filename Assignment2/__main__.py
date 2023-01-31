@@ -42,7 +42,7 @@ from unet import UNet
 def main():
     # Settings for restoring/creating experiment
     LOAD_CHECKPOINT = False # True, False
-    UUID = 'AbeSaveTesting2'
+    #UUID = 'AbeSaveTesting2'
     EXP = 'recurrent' # 'recurrent', 'residual'
 
     print(f'Status: Device is using GPU: {torch.cuda.is_available()}')
@@ -51,7 +51,7 @@ def main():
     experiment.create(
         name='diffuse',
         writers={'screen', 'labml'},
-        uuid=UUID,
+#        uuid=UUID,
     )
 
     # Create configurations
@@ -73,15 +73,15 @@ def main():
     # Start a new experiment
     if not LOAD_CHECKPOINT:
         # Reset the experiment
-        if os.path.exists(f'{os.getcwd()}\logs\diffuse\{UUID}'):
-            shutil.rmtree(f'{os.getcwd()}\logs\diffuse\{UUID}')
+#        if os.path.exists(f'{os.getcwd()}\logs\diffuse\{UUID}'):
+#            shutil.rmtree(f'{os.getcwd()}\logs\diffuse\{UUID}')
         # Start the experiment
         with experiment.start():
             configs.run()
 
     # Load previous experiment
     elif LOAD_CHECKPOINT:
-        experiment.load(run_uuid=UUID)
+#        experiment.load(run_uuid=UUID)
         # Start the experiment (note: not using with experiment.start() when loading)
         with experiment.start():
             configs.run()
@@ -132,7 +132,7 @@ class Configs(BaseConfigs):
     # Image size
     image_size: int = 32
     # Number of channels in the initial feature map
-    n_channels: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
+    n_channels: int = 96  # 64 (Default: Ho et al.; Limit is VRAM)
 
     # Batch size
     batch_size: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
@@ -193,7 +193,7 @@ class Configs(BaseConfigs):
             pytorch_total_params = sum(p.numel() for p in self.eps_model.parameters())
             print(f'The total number of parameters are: {pytorch_total_params}')
         # Data augmentation
-        self.dataset.data = self.augment(self.dataset.data)
+        #self.augment()
         # Create dataloader
         self.data_loader = torch.utils.data.DataLoader(self.dataset, self.batch_size, shuffle=True, pin_memory=True)
         # Create optimizer
@@ -222,17 +222,19 @@ class Configs(BaseConfigs):
             # Log the final denoised samples
             tracker.save('sample', x)
 
-    def augment(self, img: torch.Tensor) -> torch.Tensor:
-        if len(img.shape) == 3:
-            img = img[:, None, :, :]
+    def augment(self):
+
+        if len(self.dataset.data.shape) == 3:
+            self.dataset.data = self.dataset.data[:, None, :, :]
 
         transformations = [T.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.5),
                            T.RandomAffine(degrees=90, translate=(0, 0.5), scale=(0.5, 0.5), shear=(0, 0.5))]
 
         for transform in transformations:
-            img_trans = transform(img)
-            img = torch.cat((img_trans, img), dim=0)
-        return torch.squeeze(img)
+            img_trans = transform(self.dataset.data)
+            self.dataset.data = torch.cat((img_trans, self.dataset.data), dim=0)
+            self.dataset.targets = torch.cat((self.dataset.targets, self.dataset.targets), dim=0)
+        self.dataset.data = torch.squeeze(self.dataset.data)
 
     def train(self) -> None:
         """
