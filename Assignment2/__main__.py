@@ -42,7 +42,7 @@ from unet import UNet
 def main():
     # Settings for restoring/creating experiment
     LOAD_CHECKPOINT = False # True, False
-    #UUID = 'AbeSaveTesting2'
+    UUID = 'Testing'
     EXP = 'recurrent' # 'recurrent', 'residual'
 
     print(f'Status: Device is using GPU: {torch.cuda.is_available()}')
@@ -51,7 +51,7 @@ def main():
     experiment.create(
         name='diffuse',
         writers={'screen', 'labml'},
-#        uuid=UUID,
+       uuid=UUID,
     )
 
     # Create configurations
