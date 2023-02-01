@@ -42,7 +42,7 @@ from unet import UNet
 def main():
     # Settings for restoring/creating experiment
     LOAD_CHECKPOINT = False # True, False
-    UUID = 'Testing'
+    UUID = 'testing'
     EXP = 'recurrent' # 'recurrent', 'residual'
 
     print(f'Status: Device is using GPU: {torch.cuda.is_available()}')
@@ -62,7 +62,7 @@ def main():
     experiment.configs(configs, {
         'dataset': 'MNIST',  # 'CIFAR10', 'CelebA' 'MNIST'
         'image_channels': 1,  # 3, 3, 1
-        'epochs': 15,  # 100, 100, 5
+        'epochs': 3,  # 100, 100, 5
     })
     # Initialize
     configs.init()
@@ -132,7 +132,7 @@ class Configs(BaseConfigs):
     # Image size
     image_size: int = 32
     # Number of channels in the initial feature map
-    n_channels: int = 96  # 64 (Default: Ho et al.; Limit is VRAM)
+    n_channels: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
 
     # Batch size
     batch_size: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
@@ -240,7 +240,8 @@ class Configs(BaseConfigs):
         """
         Train a Denoising Diffusion Probabilistic Model (DDPM) with the set dataloader.
         """
-
+        data_steps = 0
+        curr_loss = 0
         # Iterate through the dataset
         for data in monit.iterate('Train', self.data_loader):
             # Increment global step
@@ -254,12 +255,21 @@ class Configs(BaseConfigs):
             loss = self.diffusion.loss(data)
             # Compute gradients
             loss.backward()
-            # Clip model gradients
-            clip_grad_value_(parameters=self.eps_model.parameters(), clip_value=self.clip)
+            # # Clip model gradients
+            # clip_grad_value_(parameters=self.eps_model.parameters(), clip_value=self.clip)
             # Take an optimization step
             self.optimizer.step()
             # Track the loss
             tracker.save('loss', loss)
+            curr_loss+=loss.item()
+            data_steps+=1
+        print(f"Loss after {data_steps} input data seen: {round(curr_loss,2)}")
+        dirs = 'loss_log_'+"test"+'.txt'
+
+        with open(dirs, 'a', ) as loss_log_file:
+            loss_info = "{}, {}".format(data_steps, curr_loss)
+            loss_log_file.write(loss_info+'\n')
+
 
     def run(self):
         """
@@ -269,7 +279,7 @@ class Configs(BaseConfigs):
             # Train the model
             self.train()
             # Sample some images
-            self.sample()
+            # self.sample()
             # New line in the console
             tracker.new_line()
             # Save the model
