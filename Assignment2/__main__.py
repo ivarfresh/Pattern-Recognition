@@ -50,7 +50,7 @@ def main():
     # Create experiment
     experiment.create(
         name='diffuse',
-        writers={'screen', 'labml'},
+        writers={'screen', 'labml','sqlite'},
        uuid=UUID,
     )
 
