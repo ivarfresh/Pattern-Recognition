@@ -132,7 +132,7 @@ class Configs(BaseConfigs):
     # Image size
     image_size: int = 32
     # Number of channels in the initial feature map
-    n_channels: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
+    n_channels: int = 96  # 64 (Default: Ho et al.; Limit is VRAM)
 
     # Batch size
     batch_size: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
@@ -255,8 +255,8 @@ class Configs(BaseConfigs):
             loss = self.diffusion.loss(data)
             # Compute gradients
             loss.backward()
-            # # Clip model gradients
-            # clip_grad_value_(parameters=self.eps_model.parameters(), clip_value=self.clip)
+            # Clip model gradients
+            clip_grad_value_(parameters=self.eps_model.parameters(), clip_value=self.clip)
             # Take an optimization step
             self.optimizer.step()
             # Track the loss
