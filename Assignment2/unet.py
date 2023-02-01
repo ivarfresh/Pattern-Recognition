@@ -94,101 +94,6 @@ class TimeEmbedding(nn.Module):
         return emb
 
 
-# class RecurrentBlock(nn.Module):
-#
-#     scale = 1  # scale of the bottleneck convolution channels (limit is VRAM)
-#
-#     def __init__(self, in_channels: int, out_channels: int, time_channels: int, n_groups: int = 32, recurrent=1):
-#         """
-#         * `in_channels` is the number of input channels
-#         * `out_channels` is the number of input channels
-#         * `time_channels` is the number channels in the time step ($t$) embeddings
-#         * `recurrent` is the number of times the input is recurrently passed. Block output is treated as new input.
-#         """
-#         super().__init__()
-#
-#         self.recurrent = recurrent
-#
-#         # Group normalization and the input convolution layer
-#         self.conv_input = nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), bias=False)
-#         self.norm_input = nn.GroupNorm(n_groups, out_channels)
-#         #self.act_input = Swish()
-#
-#         self.skip = nn.Conv2d(out_channels, out_channels,
-#                               kernel_size=(3, 3), stride=(1, 1), padding=(1, 1),  bias=False)
-#         self.norm_skip = nn.GroupNorm(n_groups, out_channels)
-#
-#         # Group normalization and the first convolution layer
-#         self.conv1 = nn.Conv2d(out_channels, out_channels * self.scale,
-#                                kernel_size=1, bias=False)
-#         self.act1 = Swish()
-#
-#         # Group normalization and the second convolution layer
-#         # self.conv2 = nn.Conv2d(out_channels * self.scale, out_channels * self.scale,
-#         #                        kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-#         # self.act2 = Swish()
-#
-#         # Group normalization and the third convolution layer
-#         self.act3 = Swish()
-#         self.conv3 = nn.Conv2d(out_channels * self.scale, out_channels,
-#                                kernel_size=(1, 1), bias=False)
-#
-#         # If the number of input channels is not equal to the number of output channels we have to
-#         # project the shortcut connection
-#         if in_channels != out_channels:
-#             self.shortcut = nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1))
-#         else:
-#             self.shortcut = nn.Identity()
-#
-#         # Linear layer for time embeddings
-#         self.time_emb = nn.Linear(time_channels, out_channels * self.scale)
-#
-#         # Need GroupNorm for each time step for training. One for each corresponding layer.
-#         for r in range(self.recurrent):
-#             setattr(self, f'norm1_{r}', nn.GroupNorm(n_groups, out_channels * self.scale)) # mod# nn.BatchNorm2d(out_channels * self.scale))
-#             #setattr(self, f'norm2_{r}', nn.GroupNorm(n_groups, out_channels * self.scale)) #nn.BatchNorm2d(out_channels * self.scale))
-#             setattr(self, f'norm3_{r}', nn.GroupNorm(n_groups, out_channels)) #nn.BatchNorm2d(out_channels))
-#
-#     def forward(self, x: torch.Tensor, t: torch.Tensor):
-#         """
-#         * `x` has shape `[batch_size, in_channels, height, width]`
-#         * `t` has shape `[batch_size, time_channels]`
-#         """
-#         #h = self.norm_input(x)
-#         h = self.conv_input(x)
-#         #h = self.act_input(h)
-#         h = self.norm_input(h)
-#
-#         for r in range(self.recurrent):
-#             if r == 0:
-#                 inner_shortcut = self.norm_skip(self.skip(h))
-#             else:
-#                 inner_shortcut = h
-#
-#             # First convolution layer in block 't'.
-#             h = self.conv1(h)
-#             h = getattr(self, f'norm1_{r}')(h)
-#             h = self.act1(h)
-#
-#             h += self.time_emb(t)[:, :, None, None]
-#
-#             # # Second convolution layer in block 't'.
-#             # h = self.conv2(h)
-#             # h = getattr(self, f'norm2_{r}')(h)
-#             # h = self.act2(h)
-#
-#             # Third convolution layer in block 't'.
-#             h = self.conv3(h)
-#             h = getattr(self, f'norm3_{r}')(h)
-#
-#             # Skip connection
-#             h += inner_shortcut
-#             h = self.act3(h)
-#              
-#
-#         return h + self.shortcut(x)
-
-
 class ResidualBlock(Module):
     """
     ### Residual block
@@ -197,7 +102,7 @@ class ResidualBlock(Module):
     Each resolution is processed with two residual blocks.
     """
 
-    def __init__(self, in_channels: int, out_channels: int, time_channels: int, dropout: float, n_groups: int = 32):
+    def __init__(self, in_channels: int, out_channels: int, time_channels: int, n_groups: int = 32):
         """
         * `in_channels` is the number of input channels
         * `out_channels` is the number of input channels
@@ -213,7 +118,6 @@ class ResidualBlock(Module):
         # Group normalization and the second convolution layer
         self.norm2 = nn.GroupNorm(n_groups, out_channels)
         self.act2 = Swish()
-        self.drop2 = nn.Dropout(p=dropout)
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=(3, 3), padding=(1, 1))
 
         # If the number of input channels is not equal to the number of output channels we have to
@@ -232,27 +136,21 @@ class ResidualBlock(Module):
         * `t` has shape `[batch_size, time_channels]`
         """
         # First convolution layer
-        h = self.norm1(x)
-        h = self.act1(h)
-        h = self.conv1(h)
-
+        h = self.conv1(self.act1(self.norm1(x)))
         # Add time embeddings
         h += self.time_emb(t)[:, :, None, None]
-
         # Second convolution layer
-        h = self.norm2(h)
-        h = self.act2(h)
-        h = self.drop2(h)
-        h = self.conv2(h)
+        h = self.conv2(self.act2(self.norm2(h)))
 
         # Add the shortcut connection and return
         return h + self.shortcut(x)
+
 
 class RecurrentBlock(nn.Module):
 
     scale = 1  # scale of the bottleneck convolution channels (limit is VRAM)
 
-    def __init__(self, in_channels: int, out_channels: int, time_channels: int, dropout: float, n_groups: int = 32, recurrent=1):
+    def __init__(self, in_channels: int, out_channels: int, time_channels: int, n_groups: int = 32, recurrent=1):
         """
         * `in_channels` is the number of input channels
         * `out_channels` is the number of input channels
@@ -266,12 +164,11 @@ class RecurrentBlock(nn.Module):
         # Group normalization and the input convolution layer
         self.conv_input = nn.Conv2d(in_channels, out_channels, kernel_size=(1, 1), bias=False)
         self.norm_input = nn.GroupNorm(n_groups, out_channels)
+        #self.act_input = Swish()
 
-        # Skip connection with group normalization for the recurrent pass
         self.skip = nn.Conv2d(out_channels, out_channels,
                               kernel_size=(3, 3), stride=(1, 1), padding=(1, 1),  bias=False)
         self.norm_skip = nn.GroupNorm(n_groups, out_channels)
-        self.act_skip = Swish()
 
         # Group normalization and the first convolution layer
         self.conv1 = nn.Conv2d(out_channels, out_channels * self.scale,
@@ -279,15 +176,14 @@ class RecurrentBlock(nn.Module):
         self.act1 = Swish()
 
         # Group normalization and the second convolution layer
-        self.conv2 = nn.Conv2d(out_channels * self.scale, out_channels * self.scale,
-                               kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        self.act2 = Swish()
+        # self.conv2 = nn.Conv2d(out_channels * self.scale, out_channels * self.scale,
+        #                        kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+        # self.act2 = Swish()
 
         # Group normalization and the third convolution layer
-        self.drop3 = nn.Dropout(p=dropout/recurrent)
+        self.act3 = Swish()
         self.conv3 = nn.Conv2d(out_channels * self.scale, out_channels,
                                kernel_size=(1, 1), bias=False)
-        self.act3 = Swish()
 
         # If the number of input channels is not equal to the number of output channels we have to
         # project the shortcut connection
@@ -301,16 +197,18 @@ class RecurrentBlock(nn.Module):
 
         # Need GroupNorm for each time step for training. One for each corresponding layer.
         for r in range(self.recurrent):
-            setattr(self, f'norm1_{r}', nn.GroupNorm(n_groups, out_channels * self.scale))
-            setattr(self, f'norm2_{r}', nn.GroupNorm(n_groups, out_channels * self.scale))
-            setattr(self, f'norm3_{r}', nn.GroupNorm(n_groups, out_channels)) # * self.scale))
+            setattr(self, f'norm1_{r}', nn.GroupNorm(n_groups, out_channels * self.scale)) # mod# nn.BatchNorm2d(out_channels * self.scale))
+            #setattr(self, f'norm2_{r}', nn.GroupNorm(n_groups, out_channels * self.scale)) #nn.BatchNorm2d(out_channels * self.scale))
+            setattr(self, f'norm3_{r}', nn.GroupNorm(n_groups, out_channels)) #nn.BatchNorm2d(out_channels))
 
     def forward(self, x: torch.Tensor, t: torch.Tensor):
         """
         * `x` has shape `[batch_size, in_channels, height, width]`
         * `t` has shape `[batch_size, time_channels]`
         """
+        #h = self.norm_input(x)
         h = self.conv_input(x)
+        #h = self.act_input(h)
         h = self.norm_input(h)
 
         for r in range(self.recurrent):
@@ -324,22 +222,23 @@ class RecurrentBlock(nn.Module):
             h = getattr(self, f'norm1_{r}')(h)
             h = self.act1(h)
 
-            # Second convolution layer in block 't'.
-            h = self.conv2(h)
             h += self.time_emb(t)[:, :, None, None]
-            h = getattr(self, f'norm2_{r}')(h)
-            h = self.act2(h)
+
+            # # Second convolution layer in block 't'.
+            # h = self.conv2(h)
+            # h = getattr(self, f'norm2_{r}')(h)
+            # h = self.act2(h)
 
             # Third convolution layer in block 't'.
-            h = self.drop3(h)
             h = self.conv3(h)
             h = getattr(self, f'norm3_{r}')(h)
 
             # Skip connection
             h += inner_shortcut
             h = self.act3(h)
-            
+
         return h + self.shortcut(x)
+
 
 class AttentionBlock(Module):
     """
@@ -413,13 +312,13 @@ class DownBlock(Module):
     This combines `ResidualBlock` and `AttentionBlock`. These are used in the first half of U-Net at each resolution.
     """
 
-    def __init__(self, in_channels: int, out_channels: int, time_channels: int, dropout: float,
+    def __init__(self, in_channels: int, out_channels: int, time_channels: int,
                  has_attn: bool, conv_block: str = 'residual'):
         super().__init__()
         if conv_block == 'residual':
-            self.re = ResidualBlock(in_channels, out_channels, time_channels, dropout)
+            self.re = ResidualBlock(in_channels, out_channels, time_channels)
         elif conv_block == 'recurrent':
-            self.re = RecurrentBlock(in_channels, out_channels, time_channels, dropout, 2)
+            self.re = RecurrentBlock(in_channels, out_channels, time_channels, 2)
         if has_attn:
             self.attn = AttentionBlock(out_channels)
         else:
@@ -439,15 +338,15 @@ class UpBlock(Module):
     These are used in the second half of U-Net at each resolution.
     """
 
-    def __init__(self, in_channels: int, out_channels: int, time_channels: int, dropout: float,
+    def __init__(self, in_channels: int, out_channels: int, time_channels: int,
                  has_attn: bool, conv_block: str = 'residual'):
         super().__init__()
         # The input has `in_channels + out_channels` because we concatenate the output of the same resolution
         # from the first half of the U-Net
         if conv_block == 'residual':
-            self.re = ResidualBlock(in_channels + out_channels, out_channels, time_channels, dropout)
+            self.re = ResidualBlock(in_channels + out_channels, out_channels, time_channels)
         elif conv_block == 'recurrent':
-            self.re = RecurrentBlock(in_channels + out_channels, out_channels, time_channels, dropout, 2)
+            self.re = RecurrentBlock(in_channels + out_channels, out_channels, time_channels, 2)
 
         if has_attn:
             self.attn = AttentionBlock(out_channels)
@@ -468,16 +367,16 @@ class MiddleBlock(Module):
     This block is applied at the lowest resolution of the U-Net.
     """
 
-    def __init__(self, n_channels: int, time_channels: int, dropout: float, conv_block: str = 'residual'):
+    def __init__(self, n_channels: int, time_channels: int, conv_block: str = 'residual'):
         super().__init__()
         if conv_block == 'residual':
-            self.re1 = ResidualBlock(n_channels, n_channels, time_channels, dropout)
+            self.re1 = ResidualBlock(n_channels, n_channels, time_channels)
             self.attn = AttentionBlock(n_channels)
-            self.re2 = ResidualBlock(n_channels, n_channels, time_channels, dropout)
+            self.re2 = ResidualBlock(n_channels, n_channels, time_channels)
         if conv_block == 'recurrent':
-            self.re1 = RecurrentBlock(n_channels, n_channels, time_channels, dropout, 4)
+            self.re1 = RecurrentBlock(n_channels, n_channels, time_channels, 4)
             self.attn = AttentionBlock(n_channels)
-            self.re2 = RecurrentBlock(n_channels, n_channels, time_channels, dropout, 4)
+            self.re2 = RecurrentBlock(n_channels, n_channels, time_channels, 4)
 
     def forward(self, x: torch.Tensor, t: torch.Tensor):
         x = self.re1(x, t)
@@ -529,7 +428,7 @@ class UNet(Module):
     def __init__(self, image_channels: int = 3, n_channels: int = 64,
                  ch_mults: Union[Tuple[int, ...], List[int]] = (1, 2, 2, 4),
                  is_attn: Union[Tuple[bool, ...], List[int]] = (False, False, True, True),
-                 n_blocks: int = 2, dropout: float = 0.1, conv_block: str = 'residual'):
+                 n_blocks: int = 2, conv_block: str = 'residual'):
         """
         * `image_channels` is the number of channels in the image. $3$ for RGB.
         * `n_channels` is number of channels in the initial feature map that we transform the image into
@@ -562,7 +461,7 @@ class UNet(Module):
             out_channels = in_channels * ch_mults[i]
             # Add `n_blocks`
             for _ in range(n_blocks):
-                down.append(DownBlock(in_channels, out_channels, n_channels * 4, dropout, is_attn[i], conv_block))
+                down.append(DownBlock(in_channels, out_channels, n_channels * 4, is_attn[i], conv_block))
                 in_channels = out_channels
             # Down sample at all resolutions except the last
             if i < n_resolutions - 1:
@@ -572,7 +471,7 @@ class UNet(Module):
         self.down = nn.ModuleList(down)
 
         # Middle block
-        self.middle = MiddleBlock(out_channels, n_channels * 4, dropout, conv_block)
+        self.middle = MiddleBlock(out_channels, n_channels * 4, conv_block)
 
         # #### Second half of U-Net - increasing resolution
         up = []
@@ -583,10 +482,10 @@ class UNet(Module):
             # `n_blocks` at the same resolution
             out_channels = in_channels
             for _ in range(n_blocks):
-                up.append(UpBlock(in_channels, out_channels, n_channels * 4, dropout, is_attn[i], conv_block))
+                up.append(UpBlock(in_channels, out_channels, n_channels * 4, is_attn[i], conv_block))
             # Final block to reduce the number of channels
             out_channels = in_channels // ch_mults[i]
-            up.append(UpBlock(in_channels, out_channels, n_channels * 4, dropout, is_attn[i], conv_block))
+            up.append(UpBlock(in_channels, out_channels, n_channels * 4, is_attn[i], conv_block))
             in_channels = out_channels
             # Up sample at all resolutions except last
             if i > 0:
@@ -622,7 +521,7 @@ class UNet(Module):
 
         # Middle (bottom)
         x = self.middle(x, t)
-
+        # Recurrent: (64, 1024,1, 1)
         # Second half of U-Net
         for m in self.up:
             if isinstance(m, Upsample):
@@ -631,6 +530,7 @@ class UNet(Module):
                 # Get the skip connection from first half of U-Net and concatenate
                 s = h.pop()
                 x = torch.cat((x, s), dim=1)
+                #
                 x = m(x, t)
 
         # Final normalization and convolution
