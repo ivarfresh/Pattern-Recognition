@@ -180,10 +180,11 @@ class TimeEmbedding(nn.Module):
 #             # Third convolution layer in block 't'.
 #             h = self.conv3(h)
 #             h = getattr(self, f'norm3_{r}')(h)
-#             h = self.act3(h)
 #
 #             # Skip connection
 #             h += inner_shortcut
+#             h = self.act3(h)
+#              
 #
 #         return h + self.shortcut(x)
 
@@ -333,11 +334,11 @@ class RecurrentBlock(nn.Module):
             h = self.drop3(h)
             h = self.conv3(h)
             h = getattr(self, f'norm3_{r}')(h)
-            h = self.act3(h)
 
             # Skip connection
             h += inner_shortcut
-
+            h = self.act3(h)
+            
         return h + self.shortcut(x)
 
 class AttentionBlock(Module):
