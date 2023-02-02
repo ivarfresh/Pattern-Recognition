@@ -32,16 +32,18 @@ def main():
     # Settings for restoring/creating experiment
 
     LOAD_CHECKPOINT = False # True, False
-    UUID = 'new_residual'
-    EXP = 'residual' # 'recurrent', 'residual'
+    UUID = 'new_recurrent_mnist'
+    EXP = 'recurrent' # 'recurrent', 'residual'
 
     print(f'Status: Device is using GPU: {torch.cuda.is_available()}')
 
-    for exp in ['residual', 'recurrent']:
+    # for exp in ['residual', 'recurrent']:
+    for exp in ['recurrent']:
         # Create experiment
         experiment.create(
             name='diffuse',
-            writers={'screen', 'labml', 'sqlite'}
+            writers={'screen', 'labml', 'sqlite'},
+            uuid=UUID
         )
 
         # Create configurations
@@ -53,7 +55,7 @@ def main():
             'dataset': 'MNIST',  # 'CIFAR10', 'CelebA' 'MNIST'
             'image_channels': 1,  # 3, 3, 1
             'image_size': 32,  # 28, 1028, 32
-            'epochs': 20,  # 100, 100, 5
+            'epochs': 10,  # 100, 100, 5
         })
         # Initialize
         configs.init()
@@ -112,7 +114,7 @@ class Configs(BaseConfigs):
     n_channels: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
 
     # Batch size
-    batch_size: int = 128  # 64 (Default: Ho et al.; Limit is VRAM)
+    batch_size: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
     # Number of training epochs
     epochs: int = 1000
 
@@ -128,7 +130,7 @@ class Configs(BaseConfigs):
     # The list of booleans that indicate whether to use attention at each resolution
     is_attention: List[int] = [False, False, False, True]
     # Convolutional block type used in the UNet blocks. Possible options are 'residual' and 'recurrent'.
-    convolutional_block: str = 'residual'
+    convolutional_block: str = 'recurrent'
 
     # Number of time steps $T$ (with $T$ = 1_000 from Ho et al).
     n_steps: int = 1000  # 1000 (Default: Ho et al.)
@@ -236,7 +238,7 @@ class Configs(BaseConfigs):
             # Compute gradients
             loss.backward()
             # Clip model gradients
-            clip_grad_value_(parameters=self.eps_model.parameters(), clip_value=self.clip)
+            # clip_grad_value_(parameters=self.eps_model.parameters(), clip_value=self.clip)
             # Take an optimization step
             self.optimizer.step()
             # Track the loss
@@ -244,7 +246,7 @@ class Configs(BaseConfigs):
             curr_loss+=loss.item()
             data_steps+=1
         print(f"Loss after {data_steps} input data seen: {round(curr_loss,2)}")
-        dirs = 'loss_log_'+"residual"+'.txt'
+        dirs = 'loss_log_'+"recurrent"+'mnist'+'.txt'
 
         with open(dirs, 'a', ) as loss_log_file:
             loss_info = "{}, {}".format(data_steps, curr_loss)
@@ -258,7 +260,7 @@ class Configs(BaseConfigs):
             # Train the model
             self.train()
             # Sample some images
-            self.sample()
+            # self.sample()
             # New line in the console
             tracker.new_line()
             # Save the model

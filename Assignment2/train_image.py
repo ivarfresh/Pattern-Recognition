@@ -25,12 +25,12 @@ batch_size = 64
 #                               transform=transforms.ToTensor())
 
 
-train_dataset = datasets.CIFAR10(root='Assignment2/data/',
+train_dataset = datasets.MNIST(root='Assignment2/data/',
                                train=True,
                                transform=transforms.ToTensor(),
                                download=True)
 
-test_dataset = datasets.CIFAR10(root='Assignment2/data/',
+test_dataset = datasets.MNIST(root='Assignment2/data/',
                               train=False,
                               transform=transforms.ToTensor())
 
@@ -52,7 +52,7 @@ def imshow(dataset):
     label = []
     dirs = 'train_image'
     for title,i in enumerate(train_dataset):
-        if title == 1000:
+        if title == 500:
             break
         img = i[0]
         label.append(i[1])

@@ -24,6 +24,8 @@ from labml_helpers.device import DeviceConfigs
 from noise import DenoiseDiffusion
 from unet import UNet
 from typing import List, Tuple
+import torchvision.transforms as T
+from torch.nn.utils import clip_grad_value_
 
 
 class Sampler:
@@ -333,7 +335,7 @@ class Configs(BaseConfigs):
     n_channels: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
 
     # Batch size
-    batch_size: int = 128  # 64 (Default: Ho et al.; Limit is VRAM)
+    batch_size: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
     # Number of training epochs
     epochs: int = 1000
 
@@ -457,7 +459,7 @@ class Configs(BaseConfigs):
             # Compute gradients
             loss.backward()
             # Clip model gradients
-            clip_grad_value_(parameters=self.eps_model.parameters(), clip_value=self.clip)
+            # clip_grad_value_(parameters=self.eps_model.parameters(), clip_value=self.clip)
             # Take an optimization step
             self.optimizer.step()
             # Track the loss
@@ -465,7 +467,7 @@ class Configs(BaseConfigs):
             curr_loss+=loss.item()
             data_steps+=1
         print(f"Loss after {data_steps} input data seen: {round(curr_loss,2)}")
-        dirs = 'loss_log_'+"residual"+'.txt'
+        dirs = 'loss_log_'+"residual"+'mnist'+'.txt'
 
         with open(dirs, 'a', ) as loss_log_file:
             loss_info = "{}, {}".format(data_steps, curr_loss)
@@ -479,7 +481,7 @@ class Configs(BaseConfigs):
             # Train the model
             self.train()
             # Sample some images
-            self.sample()
+            # self.sample()
             # New line in the console
             tracker.new_line()
             # Save the model
@@ -492,7 +494,7 @@ def main():
     """Generate samples"""
 
     # Training experiment run UUID
-    run_uuid = "new_residual"
+    run_uuid = "new_residual_mnist"
 
     # Start an evaluation
     experiment.evaluate()
