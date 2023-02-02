@@ -293,31 +293,32 @@ class Configs(BaseConfigs):
 
     Attributes:
         device (torch.device):           Device on which to run the model.
+        show (bool):                     Extract model information.
         eps_model (UNet):                U-Net model for the function `epsilon_theta`.
         diffusion (DenoiseDiffusion):    DDPM algorithm.
         image_channels (int):            Number of channels in the image (e.g. 3 for RGB).
         image_size (int):                Size of the image.
         n_channels (int):                Number of channels in the initial feature map.
+        epochs (int):                    Number of training epochs.
+        batch_size (int):                Batch size.
+        clip (float):                    Magnitude of maximal gradients allowed.
+        dropout (float):                 The probability for the dropout of units.
         channel_multipliers (List[int]): Number of channels at each resolution.
         is_attention (List[bool]):       Indicates whether to use attention at each resolution.
         convolutional_block (str):       Type of the convolutional block used
-        schedule_name (str):             Function of the noise schedule
         n_steps (int):                   Number of time steps.
-        batch_size (int):                Batch size.
         n_samples (int):                 Number of samples to generate.
         learning_rate (float):           Learning rate.
-        epochs (int):                    Number of training epochs.
         dataset (torch.utils.data.Dataset):         Dataset to be used for training.
         data_loader (torch.utils.data.DataLoader):  DataLoader for loading the data for training.
         optimizer (torch.optim.Adam):               Optimizer for the model.
     """
-
     # Device to train the model on.
-    # [`DeviceConfigs`](https://docs.labml.ai/api/helpers.html#labml_helpers.device.DeviceConfigs)
+    # [`DeviceConfigs`
     #  picks up an available CUDA device or defaults to CPU.
     device: torch.device = DeviceConfigs()
     # Retrieve model information
-    show = True
+    show: bool = True
 
     # U-Net model for $\textcolor{lightgreen}{\epsilon_\theta}(x_t, t)$
     eps_model: UNet
@@ -330,27 +331,30 @@ class Configs(BaseConfigs):
     image_size: int = 32
     # Number of channels in the initial feature map
     n_channels: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
+
+    # Batch size
+    batch_size: int = 128  # 64 (Default: Ho et al.; Limit is VRAM)
+    # Number of training epochs
+    epochs: int = 1000
+
+    # Learning rate
+    learning_rate: float = 2e-5
+    # Set maximal gradient value
+    clip: float = 1.0
+    # Set the dropout probability
+    dropout: float = 0.1
     # The list of channel numbers at each resolution.
     # The number of channels is `channel_multipliers[i] * n_channels`
     channel_multipliers: List[int] = [1, 2, 2, 4]
     # The list of booleans that indicate whether to use attention at each resolution
     is_attention: List[int] = [False, False, False, True]
     # Convolutional block type used in the UNet blocks. Possible options are 'residual' and 'recurrent'.
-    convolutional_block = 'recurrent'
+    convolutional_block: str = 'residual'
 
-    # Defines the noise schedule. Possible options are 'linear' and 'cosine'.
-    schedule_name: str = 'linear'
     # Number of time steps $T$ (with $T$ = 1_000 from Ho et al).
     n_steps: int = 1000  # 1000 (Default: Ho et al.)
-
-    # Batch size
-    batch_size: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
     # Number of samples to generate
     n_samples: int = 16
-    # Learning rate
-    learning_rate: float = 2e-5
-    # Number of training epochs
-    epochs: int = 1000
 
     # Dataset
     dataset: torch.utils.data.Dataset
@@ -364,21 +368,20 @@ class Configs(BaseConfigs):
         """
         Initialize the model, dataset, and optimizer objects.
         """
-
-        # Create $\textcolor{lightgreen}{\epsilon_\theta}(x_t, t)$ model
+        # Create εθ(x_t, t) model
         self.eps_model = UNet(
             image_channels=self.image_channels,
             n_channels=self.n_channels,
             ch_mults=self.channel_multipliers,
+            dropout=self.dropout,
             is_attn=self.is_attention,
             conv_block=self.convolutional_block
         ).to(self.device)
 
-        # Create [DDPM class](index.html)
+        # Create [DDPM class]
         self.diffusion = DenoiseDiffusion(
             eps_model=self.eps_model,
             n_steps=self.n_steps,
-            schedule_name=self.schedule_name,
             device=self.device,
         )
 
@@ -386,7 +389,8 @@ class Configs(BaseConfigs):
         if self.show:
             pytorch_total_params = sum(p.numel() for p in self.eps_model.parameters())
             print(f'The total number of parameters are: {pytorch_total_params}')
-
+        # Data augmentation (skipped, due to runtime)
+        # self.augment()
         # Create dataloader
         self.data_loader = torch.utils.data.DataLoader(self.dataset, self.batch_size, shuffle=True, pin_memory=True)
         # Create optimizer
@@ -399,7 +403,6 @@ class Configs(BaseConfigs):
         """
         Generate samples from a trained Denoising Diffusion Probabilistic Model (DDPM).
         """
-
         with torch.no_grad():
             # Sample from the noise distribution at the final time step: x_T ~ p(x_T) = N(x_T; 0, I)
             x = torch.randn([self.n_samples, self.image_channels, self.image_size, self.image_size],
@@ -415,12 +418,31 @@ class Configs(BaseConfigs):
             # Log the final denoised samples
             tracker.save('sample', x)
 
+    def augment(self):
+        """
+        Augment the data set with color jittering (brithness, contrast, saturation, and hue) and
+        affine transformations (ratation, translation, scaling and shearing). Used to increase the data set size,
+        making the predictions more robust to attain view point invariance.
+        """
+
+        if len(self.dataset.data.shape) == 3:
+            self.dataset.data = self.dataset.data[:, None, :, :]
+
+        transformations = [T.ColorJitter(brightness=0.5, contrast=0.5, saturation=0.5, hue=0.5),
+                           T.RandomAffine(degrees=90, translate=(0, 0.5), scale=(0.5, 0.5), shear=(0, 0.5))]
+
+        for transform in transformations:
+            img_trans = transform(self.dataset.data)
+            self.dataset.data = torch.cat((img_trans, self.dataset.data), dim=0)
+            self.dataset.targets = torch.cat((self.dataset.targets, self.dataset.targets), dim=0)
+        self.dataset.data = torch.squeeze(self.dataset.data)
 
     def train(self) -> None:
         """
         Train a Denoising Diffusion Probabilistic Model (DDPM) with the set dataloader.
         """
-
+        data_steps = 0
+        curr_loss = 0
         # Iterate through the dataset
         for data in monit.iterate('Train', self.data_loader):
             # Increment global step
@@ -434,10 +456,20 @@ class Configs(BaseConfigs):
             loss = self.diffusion.loss(data)
             # Compute gradients
             loss.backward()
+            # Clip model gradients
+            clip_grad_value_(parameters=self.eps_model.parameters(), clip_value=self.clip)
             # Take an optimization step
             self.optimizer.step()
             # Track the loss
             tracker.save('loss', loss)
+            curr_loss+=loss.item()
+            data_steps+=1
+        print(f"Loss after {data_steps} input data seen: {round(curr_loss,2)}")
+        dirs = 'loss_log_'+"residual"+'.txt'
+
+        with open(dirs, 'a', ) as loss_log_file:
+            loss_info = "{}, {}".format(data_steps, curr_loss)
+            loss_log_file.write(loss_info+'\n')
 
     def run(self):
         """
@@ -447,7 +479,7 @@ class Configs(BaseConfigs):
             # Train the model
             self.train()
             # Sample some images
-            # self.sample()
+            self.sample()
             # New line in the console
             tracker.new_line()
             # Save the model
@@ -460,7 +492,7 @@ def main():
     """Generate samples"""
 
     # Training experiment run UUID
-    run_uuid = "recurrent"
+    run_uuid = "new_residual"
 
     # Start an evaluation
     experiment.evaluate()
