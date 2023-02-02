@@ -42,8 +42,8 @@ from unet import UNet
 def main():
     # Settings for restoring/creating experiment
     LOAD_CHECKPOINT = False # True, False
-    UUID = 'new_recurrent'
-    EXP = 'recurrent' # 'recurrent', 'residual'
+    UUID = 'testing'
+    EXP = 'residual' # 'recurrent', 'residual'
 
     print(f'Status: Device is using GPU: {torch.cuda.is_available()}')
 
@@ -51,7 +51,7 @@ def main():
     experiment.create(
         name='diffuse',
         writers={'screen', 'labml','sqlite'},
-       uuid=UUID,
+        uuid=UUID,
     )
 
     # Create configurations
@@ -60,9 +60,10 @@ def main():
     configs.convolutional_block = EXP
     # Set configurations. You can override the defaults by passing the values in the dictionary.
     experiment.configs(configs, {
-        'dataset': 'CIFAR10',  # 'CIFAR10', 'CelebA' 'MNIST'
-        'image_channels': 3,  # 3, 3, 1
-        'epochs': 100,  # 100, 100, 5
+        'dataset': 'MNIST',  # 'CIFAR10', 'CelebA' 'MNIST'
+        'image_channels': 1,  # 3, 3, 1
+        'image_size': 32, # 28, 1028, 32
+        'epochs': 15,  # 100, 100, 5
     })
     # Initialize
     configs.init()
@@ -73,15 +74,15 @@ def main():
     # Start a new experiment
     if not LOAD_CHECKPOINT:
         # Reset the experiment
-#        if os.path.exists(f'{os.getcwd()}\logs\diffuse\{UUID}'):
-#            shutil.rmtree(f'{os.getcwd()}\logs\diffuse\{UUID}')
+        if os.path.exists(f'{os.getcwd()}\logs\diffuse\{UUID}'):
+            shutil.rmtree(f'{os.getcwd()}\logs\diffuse\{UUID}')
         # Start the experiment
         with experiment.start():
             configs.run()
 
     # Load previous experiment
     elif LOAD_CHECKPOINT:
-#        experiment.load(run_uuid=UUID)
+        experiment.load(run_uuid=UUID)
         # Start the experiment (note: not using with experiment.start() when loading)
         with experiment.start():
             configs.run()
@@ -135,7 +136,7 @@ class Configs(BaseConfigs):
     n_channels: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
 
     # Batch size
-    batch_size: int = 64  # 64 (Default: Ho et al.; Limit is VRAM)
+    batch_size: int = 128  # 64 (Default: Ho et al.; Limit is VRAM)
     # Number of training epochs
     epochs: int = 1000
 
@@ -176,7 +177,7 @@ class Configs(BaseConfigs):
             image_channels=self.image_channels,
             n_channels=self.n_channels,
             ch_mults=self.channel_multipliers,
-            # dropout=self.dropout,
+            #dropout=self.dropout,
             is_attn=self.is_attention,
             conv_block=self.convolutional_block
         ).to(self.device)
@@ -263,8 +264,8 @@ class Configs(BaseConfigs):
             tracker.save('loss', loss)
             curr_loss+=loss.item()
             data_steps+=1
-        print(f"Loss after {data_steps} input data seen: {round(curr_loss,2)}")
-        dirs = 'loss_log_'+"recurrent"+'.txt'
+        print(f"Loss after {data_steps} steps: {round(curr_loss,2)}")
+        dirs = 'loss_log_'+"test"+'.txt'
 
         with open(dirs, 'a', ) as loss_log_file:
             loss_info = "{}, {}".format(data_steps, curr_loss)
@@ -279,7 +280,7 @@ class Configs(BaseConfigs):
             # Train the model
             self.train()
             # Sample some images
-            # self.sample()
+            self.sample()
             # New line in the console
             tracker.new_line()
             # Save the model
@@ -294,7 +295,9 @@ class MNISTDataset(torchvision.datasets.MNIST):
     def __init__(self, image_size):
         transform = T.Compose([
             T.Resize(image_size),
-            T.ToTensor(),
+            T.RandomHorizontalFlip(p=0.25),
+            T.RandomVerticalFlip(p=0.25),
+            T.ToTensor()
         ])
 
         super().__init__(str(lab.get_data_path()), train=True, download=True, transform=transform)
@@ -319,7 +322,9 @@ class CIFAR10Dataset(torchvision.datasets.CIFAR10):
     def __init__(self, image_size):
         transform = T.Compose([
             T.Resize(image_size),
-            T.ToTensor(),
+            T.RandomHorizontalFlip(p=0.25),
+            T.RandomVerticalFlip(p=0.25),
+            T.ToTensor()
         ])
 
         super().__init__(str(lab.get_data_path()), train=True, download=True, transform=transform)
