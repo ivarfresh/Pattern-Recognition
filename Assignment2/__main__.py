@@ -30,6 +30,13 @@ def main():
     Main entry point to set up the experiment (using labml package)
     """
     # Settings for restoring/creating experiment
+<<<<<<< Updated upstream
+=======
+    LOAD_CHECKPOINT = False # True, False
+    UUID = 'new_residual'
+    EXP = 'residual' # 'recurrent', 'residual'
+
+>>>>>>> Stashed changes
     print(f'Status: Device is using GPU: {torch.cuda.is_available()}')
 
     for exp in ['residual', 'recurrent']:
@@ -123,7 +130,7 @@ class Configs(BaseConfigs):
     # The list of booleans that indicate whether to use attention at each resolution
     is_attention: List[int] = [False, False, False, True]
     # Convolutional block type used in the UNet blocks. Possible options are 'residual' and 'recurrent'.
-    convolutional_block: str = 'recurrent'
+    convolutional_block: str = 'residual'
 
     # Number of time steps $T$ (with $T$ = 1_000 from Ho et al).
     n_steps: int = 1000  # 1000 (Default: Ho et al.)
@@ -236,10 +243,17 @@ class Configs(BaseConfigs):
             self.optimizer.step()
             # Track the loss
             tracker.save('loss', loss)
+<<<<<<< Updated upstream
             curr_loss += loss.item()
             data_steps += 1
         print(f"Loss after {data_steps} steps: {round(curr_loss,2)}")
         dirs = f'loss_log_{self.convolutional_block}_MNIST.txt'
+=======
+            curr_loss+=loss.item()
+            data_steps+=1
+        print(f"Loss after {data_steps} input data seen: {round(curr_loss,2)}")
+        dirs = 'loss_log_'+"residual"+'.txt'
+>>>>>>> Stashed changes
 
         with open(dirs, 'a', ) as loss_log_file:
             loss_info = "{}, {}".format(data_steps, curr_loss)
