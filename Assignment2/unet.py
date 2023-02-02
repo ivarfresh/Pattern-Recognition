@@ -5,20 +5,17 @@ summary: >
   UNet model for Denoising Diffusion Probabilistic Models (DDPM)
 ---
 
-# U-Net model for [Denoising Diffusion Probabilistic Models (DDPM)](index.html)
+# U-Net model for [Denoising Diffusion Probabilistic Models (DDPM)]
 
-This is a [U-Net](../../unet/index.html) based model to predict noise
-$\textcolor{lightgreen}{\epsilon_\theta}(x_t, t)$.
+This is a [U-Net] based model to predict noise εθ(x_t, t)
 
-U-Net gets it's name from the U shape in the model diagram.
+U-Net gets its name from the U shape in the model diagram.
 It processes a given image by progressively lowering (halving) the feature map resolution and then
 increasing the resolution.
 There are pass-through connection at each resolution.
 
-![U-Net diagram from paper](../../unet/unet.png)
-
 This implementation contains a bunch of modifications to original U-Net (residual blocks, multi-head attention)
- and also adds time-step embeddings $t$.
+ and also adds time-step embeddings t.
 """
 
 import math
@@ -33,9 +30,8 @@ class Swish(Module):
     """
     ### Swish actiavation function
 
-    $$x \cdot \sigma(x)$$
+    The input is transformed according to the swish formula: x = x * σ(x)
     """
-
     def forward(self, x):
         return x * torch.sigmoid(x)
 
@@ -50,7 +46,6 @@ class TimeEmbedding(nn.Module):
         The number of dimensions in the embedding.
 
     """
-
     def __init__(self, n_channels: int):
         super().__init__()
         self.n_channels = n_channels
@@ -106,8 +101,9 @@ class ResidualBlock(Module):
         """
         * `in_channels` is the number of input channels
         * `out_channels` is the number of input channels
-        * `time_channels` is the number channels in the time step ($t$) embeddings
-        * `n_groups` is the number of groups for [group normalization](../../normalization/group_norm/index.html)
+        * `time_channels` is the number channels in the time step (t) embeddings
+        * `dropout`is the probability of neurons in the next convolutional layer to be removed
+        * `n_groups` is the number of groups for [group normalization]
         """
         super().__init__()
         # Group normalization and the first convolution layer
@@ -153,19 +149,19 @@ class ResidualBlock(Module):
         # Add the shortcut connection and return
         return h + self.shortcut(x)
 
-        # Add the shortcut connection and return
-        return h + self.shortcut(x)
-
 
 class RecurrentBlock(nn.Module):
 
     scale = 1  # scale of the bottleneck convolution channels (limit is VRAM)
 
-    def __init__(self, in_channels: int, out_channels: int, time_channels: int, dropout: float, n_groups: int = 32, recurrent=1):
+    def __init__(self, in_channels: int, out_channels: int, time_channels: int,
+                 dropout: float, n_groups: int = 32, recurrent=1):
         """
         * `in_channels` is the number of input channels
         * `out_channels` is the number of input channels
-        * `time_channels` is the number channels in the time step ($t$) embeddings
+        * `time_channels` is the number channels in the time step (t) embeddings
+        * `dropout`is the probability of neurons in the next convolutional layer to be removed
+        * `n_groups` is the number of groups for [group normalization]
         * `recurrent` is the number of times the input is recurrently passed. Block output is treated as new input.
         """
         super().__init__()
@@ -183,18 +179,18 @@ class RecurrentBlock(nn.Module):
         # Group normalization and the first convolution layer
         self.conv1 = nn.Conv2d(out_channels, out_channels * self.scale,
                                kernel_size=1, bias=False)
-        self.act1 = Swish() # nn.ReLU(inplace=True)
+        self.act1 = Swish()
 
         # Group normalization and the second convolution layer
         self.conv2 = nn.Conv2d(out_channels * self.scale, out_channels * self.scale,
                                kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
-        self.act2 = Swish() # nn.ReLU(inplace=True)
+        self.act2 = Swish()
 
         # Group normalization and the third convolution layer
         self.conv3 = nn.Conv2d(out_channels * self.scale, out_channels,
                                kernel_size=(1, 1), bias=False)
         self.drop3 = nn.Dropout(p=dropout / self.recurrent)
-        self.act3 = Swish() # nn.ReLU(inplace=True)
+        self.act3 = Swish()
 
         # If the number of input channels is not equal to the number of output channels we have to
         # project the shortcut connection
@@ -208,9 +204,9 @@ class RecurrentBlock(nn.Module):
 
         # Need GroupNorm for each time step for training. One for each corresponding layer.
         for r in range(self.recurrent):
-            setattr(self, f'norm1_{r}', nn.GroupNorm(n_groups, out_channels * self.scale)) # mod# nn.BatchNorm2d(out_channels * self.scale))
-            setattr(self, f'norm2_{r}', nn.GroupNorm(n_groups, out_channels * self.scale)) #nn.BatchNorm2d(out_channels * self.scale))
-            setattr(self, f'norm3_{r}', nn.GroupNorm(n_groups, out_channels)) #nn.BatchNorm2d(out_channels))
+            setattr(self, f'norm1_{r}', nn.GroupNorm(n_groups, out_channels * self.scale))
+            setattr(self, f'norm2_{r}', nn.GroupNorm(n_groups, out_channels * self.scale))
+            setattr(self, f'norm3_{r}', nn.GroupNorm(n_groups, out_channels))
 
     def forward(self, x: torch.Tensor, t: torch.Tensor):
         """
@@ -226,18 +222,18 @@ class RecurrentBlock(nn.Module):
             else:
                 inner_shortcut = h
 
-            # First convolution layer in block 't'.
+            # First convolution layer in block t.
             h = self.conv1(h)
             h = getattr(self, f'norm1_{r}')(h)
             h = self.act1(h)
 
-            # Second convolution layer in block 't'.
+            # Second convolution layer in block t.
             h = self.conv2(h)
             h += self.time_emb(t)[:, :, None, None]
             h = getattr(self, f'norm2_{r}')(h)
             h = self.act2(h)
 
-            # Third convolution layer in block 't'.
+            # Third convolution layer in block t.
             h = self.drop3(h)
             h = self.conv3(h)
             h = getattr(self, f'norm3_{r}')(h)
@@ -253,7 +249,7 @@ class AttentionBlock(Module):
     """
     ### Attention block
 
-    This is similar to [transformer multi-head attention](../../transformers/mha.html).
+    This is similar to a transformer multi-head attention.
     """
 
     def __init__(self, n_channels: int, n_heads: int = 1, d_k: int = None, n_groups: int = 32):
@@ -261,7 +257,7 @@ class AttentionBlock(Module):
         * `n_channels` is the number of channels in the input
         * `n_heads` is the number of heads in multi-head attention
         * `d_k` is the number of dimensions in each head
-        * `n_groups` is the number of groups for [group normalization](../../normalization/group_norm/index.html)
+        * `n_groups` is the number of groups for [group normalization]
         """
         super().__init__()
 
@@ -318,7 +314,8 @@ class DownBlock(Module):
     """
     ### Down block
 
-    This combines `ResidualBlock` and `AttentionBlock`. These are used in the first half of U-Net at each resolution.
+    This combines `ResidualBlock` and `AttentionBlock`.
+    These are used in the first half of U-Net at each resolution.
     """
 
     def __init__(self, in_channels: int, out_channels: int, time_channels: int,
@@ -384,9 +381,9 @@ class MiddleBlock(Module):
             self.attn = AttentionBlock(n_channels)
             self.re2 = ResidualBlock(n_channels, n_channels, time_channels, dropout)
         if conv_block == 'recurrent':
-            self.re1 = RecurrentBlock(n_channels, n_channels, time_channels, dropout,4)
+            self.re1 = RecurrentBlock(n_channels, n_channels, time_channels, dropout, 4)
             self.attn = AttentionBlock(n_channels)
-            self.re2 = RecurrentBlock(n_channels, n_channels, time_channels, dropout,4)
+            self.re2 = RecurrentBlock(n_channels, n_channels, time_channels, dropout, 4)
 
     def forward(self, x: torch.Tensor, t: torch.Tensor):
         x = self.re1(x, t)
@@ -397,11 +394,8 @@ class MiddleBlock(Module):
 
 class Upsample(Module):
     """
-    ### Scale up the feature map by $2 \times$
+    ### Scale up the feature map by 2\times
     """
-
-    # Note to self (Abe): this ConvTranspose2d does all the upscaling. Describing how it does so,
-    # is something for the methods
 
     def __init__(self, n_channels):
         super().__init__()
@@ -438,7 +432,7 @@ class UNet(Module):
     def __init__(self, image_channels: int = 3, n_channels: int = 64,
                  ch_mults: Union[Tuple[int, ...], List[int]] = (1, 2, 2, 4),
                  is_attn: Union[Tuple[bool, ...], List[int]] = (False, False, True, True),
-                 n_blocks: int = 2, dropout = 0.1, conv_block: str = 'residual'):
+                 n_blocks: int = 2, dropout: float = 0.1, conv_block: str = 'residual'):
         """
         * `image_channels` is the number of channels in the image. $3$ for RGB.
         * `n_channels` is number of channels in the initial feature map that we transform the image into
@@ -446,6 +440,8 @@ class UNet(Module):
                      The number of channels is `ch_mults[i] * n_channels`
         * `is_attn` is a list of booleans that indicate whether to use attention at each resolution
         * `n_blocks` is the number of `UpDownBlocks` at each resolution
+        * `dropout` is the probability offor the dropout layer
+        * `conv_block` is the type of convolutional block that is used
         """
         super().__init__()
         # Convolutional block type for UNet blocks.

@@ -5,12 +5,9 @@ summary: >
   PyTorch implementation and tutorial of the paper
   Denoising Diffusion Probabilistic Models (DDPM).
 ---
-
-(obtained from: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/diffusion/ddpm/__init__.py)
 """
 
 from typing import Tuple, Optional
-import math
 
 import torch
 import torch.nn.functional as f
@@ -29,7 +26,7 @@ class DenoiseDiffusion:
         Initialize a DenoiseDiffusion object.
 
         Args:
-        - eps_model: This is \epsilon_\theta(x_t, t). PyTorch module (with parameters theta) representing the denoising
+        - eps_model: This is εθ(x_t, t). PyTorch module (with parameters theta) representing the denoising
                      process, which is a function that maps the final latent state back to the observation space (e.g.,
                      the space of clean images).
         It takes the final latent state x_t and produces some output. In our case, this is the UNet.
@@ -50,7 +47,6 @@ class DenoiseDiffusion:
 
         # Set the variance of the diffusion process to beta.
         self.sigma2 = self.beta
-
 
     def get_named_beta_schedule(self) -> torch.Tensor:
         """
@@ -98,7 +94,6 @@ class DenoiseDiffusion:
 
         The q(x_t|x_0) distribution is defined as:
         q(x_t|x_0) = 𝒩(x_t; √(α̅ₜ ) * x_0, (1 - α̅ₜ ) * I)
-        (in latex: q(x_t|x_0) &= \mathcal{N} \Big(x_t; \sqrt{\bar\alpha_t} x_0, (1-\bar\alpha_t) \mathbf{I} \Big) )
 
         Args:
         - x0: a tensor representing the initial latent state.

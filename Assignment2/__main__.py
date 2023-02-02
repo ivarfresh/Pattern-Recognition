@@ -6,23 +6,10 @@ summary: >
   Denoising Diffusion Probabilistic Model.
 ---
 
-# [Denoising Diffusion Probabilistic Models (DDPM)](index.html) training
-
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)]
-(https://colab.research.google.com/github/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/diffusion/ddpm/experiment.ipynb)
-
-This trains a DDPM based model on CelebA HQ dataset. You can find the download instruction in this
-[discussion on fast.ai](https://forums.fast.ai/t/download-celeba-hq-dataset/45873/3).
-Save the images inside [`data/celebA` folder](#dataset_path).
-
+# [Denoising Diffusion Probabilistic Models (DDPM)] training
 The paper had used an exponential moving average of the model with a decay of $0.9999$. We have skipped this for
 simplicity.
-
-(obtained from: From: https://github.com/labmlai/annotated_deep_learning_paper_implementations/blob/master/labml_nn/diffusion/ddpm/experiment.py)
 """
-import os
-import shutil
-
 from typing import List
 
 import torch
@@ -38,52 +25,38 @@ from noise import DenoiseDiffusion
 from unet import UNet
 
 
-
 def main():
+    """
+    Main entry point to set up the experiment (using labml package)
+    """
     # Settings for restoring/creating experiment
-    LOAD_CHECKPOINT = False # True, False
-    UUID = 'testing'
-    EXP = 'residual' # 'recurrent', 'residual'
-
     print(f'Status: Device is using GPU: {torch.cuda.is_available()}')
 
-    # Create experiment
-    experiment.create(
-        name='diffuse',
-        writers={'screen', 'labml','sqlite'},
-        uuid=UUID,
-    )
+    for exp in ['residual', 'recurrent']:
+        # Create experiment
+        experiment.create(
+            name='diffuse',
+            writers={'screen', 'labml', 'sqlite'}
+        )
 
-    # Create configurations
-    configs = Configs()
-    # Set the model
-    configs.convolutional_block = EXP
-    # Set configurations. You can override the defaults by passing the values in the dictionary.
-    experiment.configs(configs, {
-        'dataset': 'MNIST',  # 'CIFAR10', 'CelebA' 'MNIST'
-        'image_channels': 1,  # 3, 3, 1
-        'image_size': 32, # 28, 1028, 32
-        'epochs': 15,  # 100, 100, 5
-    })
-    # Initialize
-    configs.init()
+        # Create configurations
+        configs = Configs()
+        # Set the model
+        configs.convolutional_block = exp
+        # Set configurations. You can override the defaults by passing the values in the dictionary.
+        experiment.configs(configs, {
+            'dataset': 'MNIST',  # 'CIFAR10', 'CelebA' 'MNIST'
+            'image_channels': 1,  # 3, 3, 1
+            'image_size': 32,  # 28, 1028, 32
+            'epochs': 20,  # 100, 100, 5
+        })
+        # Initialize
+        configs.init()
 
-    # Set models for saving and loading
-    experiment.add_pytorch_models({'eps_model': configs.eps_model})
+        # Set models for saving and loading
+        experiment.add_pytorch_models({'eps_model': configs.eps_model})
 
-    # Start a new experiment
-    if not LOAD_CHECKPOINT:
-        # Reset the experiment
-        if os.path.exists(f'{os.getcwd()}\logs\diffuse\{UUID}'):
-            shutil.rmtree(f'{os.getcwd()}\logs\diffuse\{UUID}')
         # Start the experiment
-        with experiment.start():
-            configs.run()
-
-    # Load previous experiment
-    elif LOAD_CHECKPOINT:
-        experiment.load(run_uuid=UUID)
-        # Start the experiment (note: not using with experiment.start() when loading)
         with experiment.start():
             configs.run()
 
@@ -110,14 +83,12 @@ class Configs(BaseConfigs):
         n_steps (int):                   Number of time steps.
         n_samples (int):                 Number of samples to generate.
         learning_rate (float):           Learning rate.
-
         dataset (torch.utils.data.Dataset):         Dataset to be used for training.
         data_loader (torch.utils.data.DataLoader):  DataLoader for loading the data for training.
         optimizer (torch.optim.Adam):               Optimizer for the model.
     """
-
     # Device to train the model on.
-    # [`DeviceConfigs`](https://docs.labml.ai/api/helpers.html#labml_helpers.device.DeviceConfigs)
+    # [`DeviceConfigs`
     #  picks up an available CUDA device or defaults to CPU.
     device: torch.device = DeviceConfigs()
     # Retrieve model information
@@ -171,18 +142,17 @@ class Configs(BaseConfigs):
         """
         Initialize the model, dataset, and optimizer objects.
         """
-
-        # Create $\textcolor{lightgreen}{\epsilon_\theta}(x_t, t)$ model
+        # Create εθ(x_t, t) model
         self.eps_model = UNet(
             image_channels=self.image_channels,
             n_channels=self.n_channels,
             ch_mults=self.channel_multipliers,
-            #dropout=self.dropout,
+            dropout=self.dropout,
             is_attn=self.is_attention,
             conv_block=self.convolutional_block
         ).to(self.device)
 
-        # Create [DDPM class](index.html)
+        # Create [DDPM class]
         self.diffusion = DenoiseDiffusion(
             eps_model=self.eps_model,
             n_steps=self.n_steps,
@@ -193,8 +163,8 @@ class Configs(BaseConfigs):
         if self.show:
             pytorch_total_params = sum(p.numel() for p in self.eps_model.parameters())
             print(f'The total number of parameters are: {pytorch_total_params}')
-        # Data augmentation
-        #self.augment()
+        # Data augmentation (skipped, due to runtime)
+        # self.augment()
         # Create dataloader
         self.data_loader = torch.utils.data.DataLoader(self.dataset, self.batch_size, shuffle=True, pin_memory=True)
         # Create optimizer
@@ -207,7 +177,6 @@ class Configs(BaseConfigs):
         """
         Generate samples from a trained Denoising Diffusion Probabilistic Model (DDPM).
         """
-
         with torch.no_grad():
             # Sample from the noise distribution at the final time step: x_T ~ p(x_T) = N(x_T; 0, I)
             x = torch.randn([self.n_samples, self.image_channels, self.image_size, self.image_size],
@@ -224,6 +193,11 @@ class Configs(BaseConfigs):
             tracker.save('sample', x)
 
     def augment(self):
+        """
+        Augment the data set with color jittering (brithness, contrast, saturation, and hue) and
+        affine transformations (ratation, translation, scaling and shearing). Used to increase the data set size,
+        making the predictions more robust to attain view point invariance.
+        """
 
         if len(self.dataset.data.shape) == 3:
             self.dataset.data = self.dataset.data[:, None, :, :]
@@ -262,15 +236,14 @@ class Configs(BaseConfigs):
             self.optimizer.step()
             # Track the loss
             tracker.save('loss', loss)
-            curr_loss+=loss.item()
-            data_steps+=1
+            curr_loss += loss.item()
+            data_steps += 1
         print(f"Loss after {data_steps} steps: {round(curr_loss,2)}")
-        dirs = 'loss_log_'+"test"+'.txt'
+        dirs = f'loss_log_{self.convolutional_block}_MNIST.txt'
 
         with open(dirs, 'a', ) as loss_log_file:
             loss_info = "{}, {}".format(data_steps, curr_loss)
             loss_log_file.write(loss_info+'\n')
-
 
     def run(self):
         """
@@ -291,7 +264,6 @@ class MNISTDataset(torchvision.datasets.MNIST):
     """
     ### MNIST dataset
     """
-
     def __init__(self, image_size):
         transform = T.Compose([
             T.Resize(image_size),
@@ -318,7 +290,6 @@ class CIFAR10Dataset(torchvision.datasets.CIFAR10):
     """
     ### CIFAR10 dataset
     """
-
     def __init__(self, image_size):
         transform = T.Compose([
             T.Resize(image_size),
@@ -332,12 +303,13 @@ class CIFAR10Dataset(torchvision.datasets.CIFAR10):
     def __getitem__(self, item):
         return super().__getitem__(item)[0]
 
-    @option(Configs.dataset, 'CIFAR10')
-    def mnist_dataset(c: Configs):
-        """
-        Create CIFAR10 dataset
-        """
-        return CIFAR10Dataset(c.image_size)
+
+@option(Configs.dataset, 'CIFAR10')
+def cifar10_dataset(c: Configs):
+    """
+    Create CIFAR10 dataset
+    """
+    return CIFAR10Dataset(c.image_size)
 
 
 if __name__ == '__main__':
